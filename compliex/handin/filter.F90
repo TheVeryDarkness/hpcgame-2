@@ -1,9 +1,10 @@
+
 subroutine filter_run(x, wgt, ngrid, is, ie, js, je) bind(c)
     implicit none
-    double precision, dimension(113, 2700) :: x
-    double precision, dimension(113, 1799) :: wgt
-    integer, dimension(113) :: ngrid
-    integer :: is, ie, js, je
+    double precision, dimension(2700, 113), intent(inout) :: x
+    double precision, dimension(1799, 113), intent(in) :: wgt
+    integer, dimension(113), intent(in) :: ngrid
+    integer, value :: is, ie, js, je
     double precision :: tmp(ie - is + 1)
     integer :: j, i, p, n, hn
 
@@ -13,7 +14,7 @@ subroutine filter_run(x, wgt, ngrid, is, ie, js, je) bind(c)
         do i = is, ie
             tmp(i - is + 1) = 0.0d0
             do p = 0, n - 1
-                tmp(i - is + 1) = tmp(i - is + 1) + wgt(j, p + 1) * x(j, i - hn + p + 1)
+                tmp(i - is + 1) = tmp(i - is + 1) + wgt(p + 1, j) * x(i - hn + p + 1, j)
             end do
         end do
         do i = is, ie
