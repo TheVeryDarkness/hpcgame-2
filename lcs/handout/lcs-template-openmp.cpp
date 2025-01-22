@@ -31,7 +31,7 @@ static inline size_t lcs_inner(element_t arr_1[len_1], element_t arr_2[len_2]) {
     //   ^buf_1
     // ^buf_0, t = 3
     for (size_t t = 2; t <= len_1; ++t) {
-        #pragma omp parallel for schedule(static)
+        // #pragma omp parallel for
         for (size_t x = 1; x < t; ++x) {
             const size_t i = x;
             const size_t j = t - x;
@@ -55,7 +55,7 @@ static inline size_t lcs_inner(element_t arr_1[len_1], element_t arr_2[len_2]) {
     //   ^buf_1
     // ^buf_0, t = 6
     for (size_t t = len_1 + 1; t <= len_2; ++t) {
-        #pragma omp parallel for schedule(static)
+        // #pragma omp parallel for
         for (size_t x = 1; x < len_1; ++x) {
             const size_t i = x;
             const size_t j = t - x;
@@ -80,21 +80,21 @@ static inline size_t lcs_inner(element_t arr_1[len_1], element_t arr_2[len_2]) {
     //   ^buf_1
     // ^buf_0, t = 9
     for (size_t t = len_2 + 1; t <= len_1 + len_2; ++t) {
-        #pragma omp parallel for schedule(static)
+        // #pragma omp parallel for
         for (size_t x = t - len_2; x < len_1; ++x) {
             const size_t i = x;
             const size_t j = t - x;
             if (arr_1[i - 1] == arr_2[j - 1]) {
                 buf_0[x] = buf_2[x - 1] + 1;
             } else {
-                buf_0[x] = std::max(buf_1[x], buf_1[x + 1]);
+                buf_0[x] = std::max(buf_1[x], buf_1[x - 1]);
             }
         }
         std::swap(buf_1, buf_2);
         std::swap(buf_0, buf_1);
     }
 
-    size_t result = buf_0[0];
+    size_t result = buf_0[len_1];
 
     free(buf_2);
     free(buf_1);
@@ -110,10 +110,10 @@ size_t lcs(element_t* arr_1, element_t* arr_2, size_t len_1, size_t len_2) {
     // 262144 1048576
     // 1048576 1048576
     switch (len_1) {
-    case 256: // For testing purposes
-        if (len_2 == 256)
-            return lcs_inner<256, 256>(arr_1, arr_2);
-        else return 0;
+    // case 256: // For testing purposes
+    //     if (len_2 == 256)
+    //         return lcs_inner<256, 256>(arr_1, arr_2);
+    //     else return 0;
     case 65536:
         switch (len_2) {
         case 65536:
