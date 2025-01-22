@@ -71,9 +71,9 @@ static inline size_t lcs_inner(element_t arr_1[len_1], element_t arr_2[len_2]) {
 
     // See the following diagram for the meaning of x and t (cell values are x):
     //
-    //     2 ? ?
-    //   1 2 ?
-    // 0 1 1
+    //     5 ? ?
+    //   4 4 ?
+    // 3 3 3
     // ? ?
     // ?
     //     ^buf_2
@@ -81,9 +81,9 @@ static inline size_t lcs_inner(element_t arr_1[len_1], element_t arr_2[len_2]) {
     // ^buf_0, t = 9
     for (size_t t = len_2 + 1; t <= len_1 + len_2; ++t) {
         #pragma omp parallel for schedule(static)
-        for (size_t x = 1; x < len_2; ++x) {
-            const size_t i = t - len_2 + x;
-            const size_t j = len_2 - x;
+        for (size_t x = t - len_2; x < len_1; ++x) {
+            const size_t i = x;
+            const size_t j = t - x;
             if (arr_1[i - 1] == arr_2[j - 1]) {
                 buf_0[x] = buf_2[x - 1] + 1;
             } else {
