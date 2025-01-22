@@ -12,9 +12,15 @@ template<size_t len_1, size_t len_2>
 static inline size_t lcs_inner(element_t arr_1[len_1], element_t arr_2[len_2]) {
     static_assert(len_1 <= len_2);
     static_assert(len_1 >= 2);
+
     size_t* buf_2 = (size_t*)calloc(len_2 + 1, sizeof(size_t));
     size_t* buf_1 = (size_t*)calloc(len_2 + 1, sizeof(size_t));
     size_t* buf_0 = (size_t*)calloc(len_2 + 1, sizeof(size_t));
+
+    // static size_t buf[3][len_2 + 1] = {};
+    // size_t* buf_2 = buf[2];
+    // size_t* buf_1 = buf[1];
+    // size_t* buf_0 = buf[0];
 
     // At the end of the t-th iteration:
     // buf_0[x] now represents the length of the LCS of dp[x][t - x]
@@ -31,7 +37,7 @@ static inline size_t lcs_inner(element_t arr_1[len_1], element_t arr_2[len_2]) {
     //   ^buf_1
     // ^buf_0, t = 3
     for (size_t t = 2; t <= len_1; ++t) {
-        // #pragma omp parallel for
+        #pragma omp parallel for schedule(static)
         for (size_t x = 1; x < t; ++x) {
             const size_t i = x;
             const size_t j = t - x;
@@ -54,9 +60,9 @@ static inline size_t lcs_inner(element_t arr_1[len_1], element_t arr_2[len_2]) {
     //     ^buf_2
     //   ^buf_1
     // ^buf_0, t = 6
-    for (size_t t = len_1 + 1; t <= len_2; ++t) {
-        // #pragma omp parallel for
-        for (size_t x = 1; x < len_1; ++x) {
+    for (size_t t = len_1 + 1; t <= len_2 + 1; ++t) {
+        #pragma omp parallel for schedule(static)
+        for (size_t x = 1; x <= len_1; ++x) {
             const size_t i = x;
             const size_t j = t - x;
             if (arr_1[i - 1] == arr_2[j - 1]) {
@@ -79,9 +85,9 @@ static inline size_t lcs_inner(element_t arr_1[len_1], element_t arr_2[len_2]) {
     //     ^buf_2
     //   ^buf_1
     // ^buf_0, t = 9
-    for (size_t t = len_2 + 1; t <= len_1 + len_2; ++t) {
-        // #pragma omp parallel for
-        for (size_t x = t - len_2; x < len_1; ++x) {
+    for (size_t t = len_2 + 2; t <= len_1 + len_2 + 2; ++t) {
+        #pragma omp parallel for schedule(static)
+        for (size_t x = t - len_2; x <= len_1; ++x) {
             const size_t i = x;
             const size_t j = t - x;
             if (arr_1[i - 1] == arr_2[j - 1]) {
@@ -96,9 +102,11 @@ static inline size_t lcs_inner(element_t arr_1[len_1], element_t arr_2[len_2]) {
 
     size_t result = buf_0[len_1];
 
-    free(buf_2);
-    free(buf_1);
-    free(buf_0);
+    // for (size_t i = 0; i < len_1; ++i) printf("%zu ", buf_0[i]); puts("");
+
+    // free(buf_2);
+    // free(buf_1);
+    // free(buf_0);
 
     return result;
 }
