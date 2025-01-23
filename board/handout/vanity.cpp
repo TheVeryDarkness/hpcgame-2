@@ -30,10 +30,7 @@ std::string sha3256(const uint8_t* data, size_t size) {
     return toHex(hash, hashLen);  
 }  
 
-void generateRandomPrivateKey(uint8_t privateKey[32]) {  
-    std::random_device rd;
-    std::mt19937_64 gen(rd());
-
+void generateRandomPrivateKey(uint8_t privateKey[32], std::mt19937_64 &gen) {  
     for (uint_fast64_t *p = (uint_fast64_t *)privateKey; p < (uint_fast64_t *)(privateKey + 32); ++p) {
         *p = gen();
     }
@@ -69,9 +66,12 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < 10; ++i) {
         infile >> vanityPrefixes[i];
     }
+    std::random_device rd;
 
     #pragma omp parallel for
     for(int i = 0; i < 10; ++i){
+        std::mt19937_64 gen(rd());
+
         secp256k1_context* ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN); 
 
         const std::string &vanityPrefix = vanityPrefixes[i];
@@ -79,7 +79,7 @@ int main(int argc, char* argv[]) {
         std::string &address = addresses[i];
 
         while (true) {  
-            generateRandomPrivateKey(privateKey);  
+            generateRandomPrivateKey(privateKey, gen);  
             address = computeEthereumAddress(ctx, privateKey);  
             if (address.substr(2, vanityPrefix.size()) == vanityPrefix) {  
                 break;  
