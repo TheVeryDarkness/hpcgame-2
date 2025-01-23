@@ -12,7 +12,7 @@
 
 using engine = std::ranlux48_base;
   
-static inline std::string toHex(const uint8_t* data, size_t size) {  
+std::string toHex(const uint8_t* data, size_t size) {  
     std::ostringstream oss;  
     for (size_t i = 0; i < size; ++i) {  
         oss << std::hex << std::setfill('0') << std::setw(2) << (int)data[i];  
@@ -20,7 +20,7 @@ static inline std::string toHex(const uint8_t* data, size_t size) {
     return oss.str();  
 }  
    
-static inline std::string sha3256(const uint8_t* data, size_t size) {  
+std::string sha3256(const uint8_t* data, size_t size) {  
     EVP_MD_CTX* context = EVP_MD_CTX_new();  
     const EVP_MD* md = EVP_get_digestbyname("sha3-256");  
     EVP_DigestInit_ex(context, md, nullptr);  
@@ -34,7 +34,7 @@ static inline std::string sha3256(const uint8_t* data, size_t size) {
     return toHex(hash, hashLen);  
 }  
 
-static inline void generateRandomPrivateKey(uint8_t privateKey[32], engine &gen) {  
+void generateRandomPrivateKey(uint8_t privateKey[32], engine &gen) {  
     for (uint8_t *p = (uint8_t *)privateKey; p < privateKey + 32; p += 6) {
         const uint_fast64_t r = { gen() };
         p[0] = r >> 40;
@@ -53,7 +53,7 @@ static inline void generateRandomPrivateKey(uint8_t privateKey[32], engine &gen)
     // fclose(urandom);  
 }  
 
-static inline std::string computeEthereumAddress(const secp256k1_context* ctx, const uint8_t privateKey[32]) {  
+std::string computeEthereumAddress(const secp256k1_context* ctx, const uint8_t privateKey[32]) {  
     secp256k1_pubkey pubkey;  
     secp256k1_ec_pubkey_create(ctx, &pubkey, privateKey);
     uint8_t pubkeySerialized[65];  
@@ -78,15 +78,19 @@ bool found[MAX_VANITY_LENGTH] = {};
 void *run(void *arg) {
     const int init = *(int *)arg;
     int i = init;
-    std::clog << "Started thread " << i << '\n';
-    engine gen(rd());
+    std::clog << "Started thread " << init << '\n';
+    engine gen(rd() + init); // Avoiding seed collision
 
     secp256k1_context* ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN); 
+
+    uint8_t privateKey[32];
+    std::string address;
 
     while (true) {  
         {
             std::shared_lock lock(mtx[i]);
             if (found[i]) {
+                std::clog << "Thread " << init << " skipped " << i << '\n';
                 i = (i + 1) % MAX_VANITY_LENGTH;
                 if (i == init) {
                     break;
@@ -95,21 +99,23 @@ void *run(void *arg) {
             } 
         }
         const std::string &vanityPrefix = vanityPrefixes[i];
-        uint8_t* const privateKey = privateKeys[i];
-        std::string &address = addresses[i];
 
         generateRandomPrivateKey(privateKey, gen);  
         address = computeEthereumAddress(ctx, privateKey);  
         if (address.substr(2, vanityPrefix.size()) == vanityPrefix) {  
-            std::clog << "Found vanity " << i << '\n';
+            std::clog << "Thread " << init << " found vanity " << i << '\n';
             i = (i + 1) % MAX_VANITY_LENGTH;
             {
                 std::unique_lock lock(mtx[i]);
+                addresses[i] = std::move(address);
+                memcpy(privateKeys[i], privateKey, sizeof(privateKey));
                 found[i] = true;
             }
         }  
     }  
     secp256k1_context_destroy(ctx);  
+
+    std::clog << "Finished thread " << init << '\n';
     pthread_exit(nullptr);
 }
 
