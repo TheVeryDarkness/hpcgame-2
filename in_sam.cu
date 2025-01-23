@@ -60,6 +60,14 @@ __global__ void kernel(d3_t src, d3_t* mir, d3_t* sen, d_t* data, int64_t mirn, 
 }
 
 int main(){
+
+    // These variables are used to convert occupancy to warps
+    int device;
+    cudaDeviceProp prop;
+
+    cudaGetDevice(&device);
+    cudaGetDeviceProperties(&prop, device);
+    
     FILE* fi;
     fi = fopen("in.data", "rb");
     d3_t src;
@@ -92,8 +100,23 @@ int main(){
 
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
 
-    kernel<<<(senn + 255) / 256, 256>>>(src, d_mir, d_sen, d_data, mirn, senn);
+    const int blockSize = 64;
+    int numBlocks = (senn + blockSize - 1) / blockSize;        // Occupancy in terms of active blocks
 
+    // kernel<<<numBlocks, blockSize>>>(src, d_mir, d_sen, d_data, mirn, senn);
+
+    cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+        &numBlocks,
+        kernel,
+        blockSize,
+        0
+    );
+
+    const int activeWarps = numBlocks * blockSize / prop.warpSize;
+    const int maxWarps = prop.maxThreadsPerMultiProcessor / prop.warpSize;
+
+    std::cout << "Occupancy: " << (double)activeWarps / maxWarps * 100 << "%" << std::endl;
+    
     CHECK_CUDA(cudaDeviceSynchronize());
 
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
@@ -106,8 +129,6 @@ int main(){
     cudaFree(d_sen);
     cudaFree(d_data);
 
-    // kernel<<<(senn + 255) / 256, 256>>>(src, mir, sen, data, mirn, senn);
-    
     CHECK_CUDA(cudaGetLastError());
 
     fi = fopen("out.data", "wb");
