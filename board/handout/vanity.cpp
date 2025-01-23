@@ -72,8 +72,8 @@ std::random_device rd;
 std::string vanityPrefixes[MAX_VANITY_LENGTH];
 uint8_t privateKeys[MAX_VANITY_LENGTH][32];
 std::string addresses[MAX_VANITY_LENGTH];
-std::shared_mutex mtx[MAX_VANITY_LENGTH];
-bool found[MAX_VANITY_LENGTH] = {};
+std::mutex mtx;
+std::atomic_bool found[MAX_VANITY_LENGTH] = {};
 
 void *run(void *arg) {
     const int init = *(int *)arg;
@@ -87,8 +87,7 @@ void *run(void *arg) {
 
     while (true) {  
         {
-            std::shared_lock lock(mtx[i]);
-            if (found[i]) {
+            if (found[i].load()) {
                 std::clog << "Thread " << init << " skipped " << i << '\n';
                 i = (i + 1) % MAX_VANITY_LENGTH;
                 if (i == init) {
@@ -104,10 +103,10 @@ void *run(void *arg) {
         if (address.substr(2, vanityPrefix.size()) == vanityPrefix) {  
             std::clog << "Thread " << init << " found vanity " << i << '\n';
             {
-                std::unique_lock lock(mtx[i]);
+                std::unique_lock lock(mtx);
                 addresses[i] = address;
                 memcpy(privateKeys[i], privateKey, sizeof(privateKey));
-                found[i] = true;
+                found[i].store(true);
             }
             i = (i + 1) % MAX_VANITY_LENGTH;
         }  
@@ -119,6 +118,7 @@ void *run(void *arg) {
 }
 
 int main(int argc, char* argv[]) {
+    static_assert(std::atomic_bool::is_always_lock_free());
     std::ifstream infile("vanity.in");
     std::ofstream outfile("vanity.out");
 

@@ -20,6 +20,7 @@
         "memory": "cpp",
         "string": "cpp",
         "fstream": "cpp",
-        "shared_mutex": "cpp"
+        "shared_mutex": "cpp",
+        "iostream": "cpp"
     }
 }
