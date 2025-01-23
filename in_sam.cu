@@ -16,6 +16,20 @@ d3_t operator-(d3_t a, d3_t b) {
     return {a.x-b.x,a.y-b.y,a.z-b.z};
 }
 
+__global__ void kernel(d3_t src, d3_t* mir, d3_t* sen, d_t* data, int64_t mirn, int64_t senn) {
+    int64_t i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < senn) {
+        d_t a=0;
+        d_t b=0;
+        for (int64_t j = 0; j < mirn; j++) {
+            d_t l = norm(mir[j] - src) + norm(mir[j] - sen[i]);
+            a += cos(6.283185307179586 * 2000 * l);
+            b += sin(6.283185307179586 * 2000 * l);
+        }
+        data[i] = sqrt(a * a + b * b);
+    }
+}
+
 int main(){
     FILE* fi;
     fi = fopen("in.data", "rb");
@@ -37,16 +51,23 @@ int main(){
 
     d_t* data = (d_t*)malloc(senn * sizeof(d_t));
 
-    for (int64_t i = 0; i < senn; i++) {
-        d_t a=0;
-        d_t b=0;
-        for (int64_t j = 0; j < mirn; j++) {
-            d_t l = norm(mir[j] - src) + norm(mir[j] - sen[i]);
-            a += cos(6.283185307179586 * 2000 * l);
-            b += sin(6.283185307179586 * 2000 * l);
-        }
-        data[i] = sqrt(a * a + b * b);
-    }
+    d3_t* d_mir, * d_sen;
+    d_t* d_data;
+
+    cudaMalloc(&d_mir, mirn * sizeof(d3_t));
+    cudaMalloc(&d_sen, senn * sizeof(d3_t));
+    cudaMalloc(&d_data, senn * sizeof(d_t));
+
+    cudaMemcpy(d_mir, mir, mirn * sizeof(d3_t), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_sen, sen, senn * sizeof(d3_t), cudaMemcpyHostToDevice);
+
+    kernel<<<(senn + 255) / 256, 256>>>(src, d_mir, d_sen, d_data, mirn, senn);
+
+    cudaMemcpy(data, d_data, senn * sizeof(d_t), cudaMemcpyDeviceToHost);
+
+    cudaFree(d_mir);
+    cudaFree(d_sen);
+    cudaFree(d_data);
 
     fi = fopen("out.data", "wb");
     fwrite(data, 1, senn * sizeof(d_t), fi);

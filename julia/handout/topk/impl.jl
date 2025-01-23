@@ -8,9 +8,8 @@ mutable struct Atomic{T}; @atomic x::T; end
 end
 
 @inbounds function topk(data::AbstractVector{T}, k) where T
-    # n = Threads.nthreads()
-    n = 64
-    chunk_size = length(data) ÷ n
+    # chunk_size = length(data) ÷ n
+    chunk_size = 1 << 17
     chunks = enumerate(Iterators.partition(data, chunk_size))
     tasks = map(chunks) do (i, chunk)
         Threads.@spawn topk_part(chunk, k, (i - 1) * chunk_size)
