@@ -3,16 +3,33 @@
 #include <malloc.h>
 #include <stdint.h>
 
+// https://zhuanlan.zhihu.com/p/663607169
+#define CHECK_CUDA(call)                                \
+    do                                                  \
+    {                                                   \
+        const cudaError_t error_code = call;            \
+        if (error_code != cudaSuccess)                  \
+        {                                               \
+            printf("CUDA Error:\n");                    \
+            printf("    File:       %s\n", __FILE__);   \
+            printf("    Line:       %d\n", __LINE__);   \
+            printf("    Error code: %d\n", error_code); \
+            printf("    Error text: %s\n",              \
+                   cudaGetErrorString(error_code));     \
+            exit(1);                                    \
+        }                                               \
+    } while (0)
+
 typedef double d_t;
 struct d3_t {
     d_t x, y, z;
 };
 
-__global__ d_t norm(d3_t x) {
+__device__ d_t norm(d3_t x) {
     return sqrt(x.x * x.x + x.y * x.y + x.z * x.z);
 }
 
-__global__ d3_t operator-(d3_t a, d3_t b) {
+__device__ d3_t operator-(d3_t a, d3_t b) {
     return {a.x-b.x,a.y-b.y,a.z-b.z};
 }
 
@@ -78,6 +95,10 @@ int main(){
     cudaFree(d_mir);
     cudaFree(d_sen);
     cudaFree(d_data);
+
+    // kernel<<<(senn + 255) / 256, 256>>>(src, mir, sen, data, mirn, senn);
+    
+    CHECK_CUDA(cudaGetLastError());
 
     fi = fopen("out.data", "wb");
     fwrite(data, 1, senn * sizeof(d_t), fi);
