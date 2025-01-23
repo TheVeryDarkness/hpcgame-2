@@ -8,14 +8,24 @@ struct d3_t {
     d_t x, y, z;
 };
 
-d_t norm(d3_t x) {
+__global__ d_t norm(d3_t x) {
     return sqrt(x.x * x.x + x.y * x.y + x.z * x.z);
 }
 
-d3_t operator-(d3_t a, d3_t b) {
+__global__ d3_t operator-(d3_t a, d3_t b) {
     return {a.x-b.x,a.y-b.y,a.z-b.z};
 }
 
+/**
+ * @brief 
+ * 
+ * @param src 
+ * @param mir 
+ * @param sen 
+ * @param data 
+ * @param mirn 
+ * @param senn 
+ */
 __global__ void kernel(d3_t src, d3_t* mir, d3_t* sen, d_t* data, int64_t mirn, int64_t senn) {
     int64_t i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < senn) {
