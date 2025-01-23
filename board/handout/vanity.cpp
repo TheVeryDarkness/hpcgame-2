@@ -55,38 +55,54 @@ std::string computeEthereumAddress(const secp256k1_context* ctx, const uint8_t p
     return "0x" + hash.substr(24);  
 }  
   
+std::random_device rd;
+std::string vanityPrefixes[10];
+uint8_t privateKeys[10][32];
+std::string addresses[10];
+
+void *run(void *arg) {
+    const int i = *(int *)arg;
+    std::clog << "Running " << i << '\n';
+    std::mt19937_64 gen(rd());
+
+    secp256k1_context* ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN); 
+
+    const std::string &vanityPrefix = vanityPrefixes[i];
+    uint8_t* const privateKey = privateKeys[i];
+    std::string &address = addresses[i];
+
+    while (true) {  
+        generateRandomPrivateKey(privateKey, gen);  
+        address = computeEthereumAddress(ctx, privateKey);  
+        if (address.substr(2, vanityPrefix.size()) == vanityPrefix) {  
+            std::clog << "Exited " << i << '\n';
+            break;  
+        }  
+    }  
+    secp256k1_context_destroy(ctx);  
+    pthread_exit(nullptr);
+}
+
 int main(int argc, char* argv[]) {
     std::ifstream infile("vanity.in");
     std::ofstream outfile("vanity.out");
 
-    std::string vanityPrefixes[10];
-    uint8_t privateKeys[10][32];
-    std::string addresses[10];
-
     for (int i = 0; i < 10; ++i) {
         infile >> vanityPrefixes[i];
     }
-    std::random_device rd;
 
-    #pragma omp parallel for
+    pthread_t threads[10];
+    int args[10];
+
     for(int i = 0; i < 10; ++i){
-        std::mt19937_64 gen(rd());
-
-        secp256k1_context* ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN); 
-
-        const std::string &vanityPrefix = vanityPrefixes[i];
-        uint8_t* const privateKey = privateKeys[i];
-        std::string &address = addresses[i];
-
-        while (true) {  
-            generateRandomPrivateKey(privateKey, gen);  
-            address = computeEthereumAddress(ctx, privateKey);  
-            if (address.substr(2, vanityPrefix.size()) == vanityPrefix) {  
-                break;  
-            }  
-        }  
-        secp256k1_context_destroy(ctx);  
+        args[i] = i;
+        pthread_create(&threads[i], nullptr, run, args + i);
     }
+
+    for(int i = 0; i < 10; ++i){
+        pthread_join(threads[i], nullptr);
+    }
+
     for (int i = 0; i < 10; ++i) {
         const uint8_t* const privateKey = privateKeys[i];
         std::string &address = addresses[i];
