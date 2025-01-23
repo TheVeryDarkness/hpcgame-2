@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <malloc.h>
 #include <stdint.h>
+#include <chrono>
+#include <iostream>
 
 // https://zhuanlan.zhihu.com/p/663607169
 #define CHECK_CUDA(call)                                \
@@ -87,7 +89,16 @@ int main(){
     cudaMemcpy(d_mir, mir, mirn * sizeof(d3_t), cudaMemcpyHostToDevice);
     cudaMemcpy(d_sen, sen, senn * sizeof(d3_t), cudaMemcpyHostToDevice);
 
+
+    std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+
     kernel<<<(senn + 255) / 256, 256>>>(src, d_mir, d_sen, d_data, mirn, senn);
+
+    CHECK_CUDA(cudaDeviceSynchronize());
+
+    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+    std::cout << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
+              << std::endl;
 
     cudaMemcpy(data, d_data, senn * sizeof(d_t), cudaMemcpyDeviceToHost);
 
