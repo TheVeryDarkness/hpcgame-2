@@ -78,7 +78,6 @@ std::atomic_bool found[MAX_VANITY_LENGTH] = {};
 
 void *run(void *arg) {
     const int init = *(int *)arg;
-    int i = init;
     std::clog << "Started thread " << init << '\n';
     engine gen(rd() + init); // Avoiding seed collision
 
@@ -87,30 +86,32 @@ void *run(void *arg) {
     uint8_t privateKey[32];
 
     while (true) {  
-        {
-            if (found[i].load()) {
-                std::clog << "Thread " << init << " skipped " << i << '\n';
-                i = (i + 1) % MAX_VANITY_LENGTH;
-                if (i == init) {
-                    break;
-                }
-                continue;
-            } 
-        }
-        const std::string &vanityPrefix = vanityPrefixes[i];
-
         generateRandomPrivateKey(privateKey, gen);  
         const std::string address = computeEthereumAddress(ctx, privateKey);  
-        if (address.substr(2, vanityPrefix.size()) == vanityPrefix) {  
-            std::clog << "Thread " << init << " found vanity " << i << '\n';
-            {
-                std::unique_lock lock(mtx);
-                addresses[i] = address;
-                memcpy(privateKeys[i], privateKey, sizeof(privateKey));
-                found[i].store(true);
+        const std::string_view addressView(address);
+
+        size_t found_total = 0;
+
+        for (int j = 0; j < MAX_VANITY_LENGTH; ++j) {
+            if (found[j].load()) {
+                ++found_total;
+                continue;
             }
-            i = (i + 1) % MAX_VANITY_LENGTH;
-        }  
+            const std::string &vanityPrefix = vanityPrefixes[j];
+            const std::string_view addressView2 = addressView.substr(2, vanityPrefix.size());
+
+            if (addressView2 == vanityPrefix) {  
+                std::clog << "Thread " << init << " found vanity " << j << '\n';
+                {
+                    found[j].store(true);
+                    std::unique_lock lock(mtx);
+                    addresses[j] = address;
+                    memcpy(privateKeys[j], privateKey, sizeof(privateKey));
+                }
+            }  
+        }
+        if (found_total == MAX_VANITY_LENGTH)
+            break;
     }  
     secp256k1_context_destroy(ctx);  
 
