@@ -3,6 +3,7 @@
 #include <sstream>  
 #include <cstring>  
 #include <fstream>  
+#include <random>  
 #include <openssl/sha.h>  
 #include <openssl/evp.h>  
 #include <secp256k1.h>  
@@ -30,13 +31,19 @@ std::string sha3256(const uint8_t* data, size_t size) {
 }  
 
 void generateRandomPrivateKey(uint8_t privateKey[32]) {  
-    FILE* urandom = fopen("/dev/urandom", "rb");  
-    int res = fread(privateKey, 1, 32, urandom);  
-    if (res != 32) {  
-        std::cerr << "Failed to read random data" << std::endl;  
-        exit(1);  
+    std::random_device rd;
+    std::mt19937_64 gen(rd());
+
+    for (uint_fast64_t *p = (uint_fast64_t *)privateKey; p < (uint_fast64_t *)(privateKey + 32); ++p) {
+        *p = gen();
     }
-    fclose(urandom);  
+    // FILE* urandom = fopen("/dev/urandom", "rb");  
+    // int res = fread(privateKey, 1, 32, urandom);  
+    // if (res != 32) {  
+    //     std::cerr << "Failed to read random data" << std::endl;  
+    //     exit(1);  
+    // }
+    // fclose(urandom);  
 }  
 
 std::string computeEthereumAddress(const secp256k1_context* ctx, const uint8_t privateKey[32]) {  
@@ -54,12 +61,23 @@ std::string computeEthereumAddress(const secp256k1_context* ctx, const uint8_t p
 int main(int argc, char* argv[]) {
     std::ifstream infile("vanity.in");
     std::ofstream outfile("vanity.out");
+
+    std::string vanityPrefixes[10];
+    uint8_t privateKeys[10][32];
+    std::string addresses[10];
+
+    for (int i = 0; i < 10; ++i) {
+        infile >> vanityPrefixes[i];
+    }
+
+    #pragma omp parallel for
     for(int i = 0; i < 10; ++i){
-        secp256k1_context* ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN);  
-        std::string vanityPrefix;
-        infile >> vanityPrefix;
-        uint8_t privateKey[32];  
-        std::string address;  
+        secp256k1_context* ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN); 
+
+        const std::string &vanityPrefix = vanityPrefixes[i];
+        uint8_t* const privateKey = privateKeys[i];
+        std::string &address = addresses[i];
+
         while (true) {  
             generateRandomPrivateKey(privateKey);  
             address = computeEthereumAddress(ctx, privateKey);  
@@ -67,9 +85,14 @@ int main(int argc, char* argv[]) {
                 break;  
             }  
         }  
+        secp256k1_context_destroy(ctx);  
+    }
+    for (int i = 0; i < 10; ++i) {
+        const uint8_t* const privateKey = privateKeys[i];
+        std::string &address = addresses[i];
+
         outfile << address << std::endl;  
         outfile << toHex(privateKey, 32) << std::endl;  
-        secp256k1_context_destroy(ctx);  
     }
     return 0;  
 }  

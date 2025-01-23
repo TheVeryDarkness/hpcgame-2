@@ -1,0 +1,24 @@
+{
+    "files.associations": {
+        "*.md": "markdown",
+        "ostream": "cpp",
+        "algorithm": "cpp",
+        "cmath": "cpp",
+        "cstddef": "cpp",
+        "cstdint": "cpp",
+        "cstdlib": "cpp",
+        "cstring": "cpp",
+        "cwchar": "cpp",
+        "initializer_list": "cpp",
+        "iosfwd": "cpp",
+        "limits": "cpp",
+        "new": "cpp",
+        "optional": "cpp",
+        "stdexcept": "cpp",
+        "tuple": "cpp",
+        "typeinfo": "cpp",
+        "memory": "cpp",
+        "string": "cpp",
+        "fstream": "cpp"
+    }
+}
