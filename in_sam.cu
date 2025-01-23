@@ -1,3 +1,4 @@
+#include <cassert>
 #include <math.h>
 #include <stdio.h>
 #include <malloc.h>
@@ -45,11 +46,14 @@ __device__ d3_t operator-(d3_t a, d3_t b) {
  * @param mirn 
  * @param senn 
  */
-__global__ void kernel(d3_t src, d3_t* mir, d3_t* sen, d_t* data, int64_t mirn, int64_t senn) {
+template<int64_t mirn, int64_t senn>
+__global__ void kernel(const d3_t src, const d3_t* mir, const d3_t* sen, d_t* data) {
     int64_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < senn) {
+
+    {
         d_t a=0;
         d_t b=0;
+        #pragma unroll
         for (int64_t j = 0; j < mirn; j++) {
             d_t l = norm(mir[j] - src) + norm(mir[j] - sen[i]);
             a += cos(6.283185307179586 * 2000 * l);
@@ -60,13 +64,12 @@ __global__ void kernel(d3_t src, d3_t* mir, d3_t* sen, d_t* data, int64_t mirn, 
 }
 
 int main(){
+    // // These variables are used to convert occupancy to warps
+    // int device;
+    // cudaDeviceProp prop;
 
-    // These variables are used to convert occupancy to warps
-    int device;
-    cudaDeviceProp prop;
-
-    cudaGetDevice(&device);
-    cudaGetDeviceProperties(&prop, device);
+    // cudaGetDevice(&device);
+    // cudaGetDeviceProperties(&prop, device);
     
     FILE* fi;
     fi = fopen("in.data", "rb");
@@ -76,10 +79,12 @@ int main(){
     fread(&src, 1, sizeof(d3_t), fi);
     
     fread(&mirn, 1, sizeof(int64_t), fi);
+    assert(mirn == 1048576);
     d3_t* mir = (d3_t*)malloc(mirn * sizeof(d3_t));
     fread(mir, 1, mirn * sizeof(d3_t), fi);
 
     fread(&senn, 1, sizeof(int64_t), fi);
+    assert(senn == 1048576);
     d3_t* sen = (d3_t*)malloc(senn * sizeof(d3_t));
     fread(sen, 1, senn * sizeof(d3_t), fi);
 
@@ -97,25 +102,24 @@ int main(){
     cudaMemcpy(d_mir, mir, mirn * sizeof(d3_t), cudaMemcpyHostToDevice);
     cudaMemcpy(d_sen, sen, senn * sizeof(d3_t), cudaMemcpyHostToDevice);
 
-
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
 
-    const int blockSize = 64;
-    int numBlocks = (senn + blockSize - 1) / blockSize;        // Occupancy in terms of active blocks
+    const int blockSize = 256;
+    const int numBlocks = (senn + blockSize - 1) / blockSize;        // Occupancy in terms of active blocks
 
-    // kernel<<<numBlocks, blockSize>>>(src, d_mir, d_sen, d_data, mirn, senn);
+    kernel<1048576, 1048576><<<numBlocks, blockSize>>>(src, d_mir, d_sen, d_data);
 
-    cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-        &numBlocks,
-        kernel,
-        blockSize,
-        0
-    );
+    // cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+    //     &numBlocks,
+    //     kernel,
+    //     blockSize,
+    //     0
+    // );
 
-    const int activeWarps = numBlocks * blockSize / prop.warpSize;
-    const int maxWarps = prop.maxThreadsPerMultiProcessor / prop.warpSize;
+    // const int activeWarps = numBlocks * blockSize / prop.warpSize;
+    // const int maxWarps = prop.maxThreadsPerMultiProcessor / prop.warpSize;
 
-    std::cout << "Occupancy: " << (double)activeWarps / maxWarps * 100 << "%" << std::endl;
+    // std::cout << "Occupancy: " << (double)activeWarps / maxWarps * 100 << "%" << std::endl;
     
     CHECK_CUDA(cudaDeviceSynchronize());
 
