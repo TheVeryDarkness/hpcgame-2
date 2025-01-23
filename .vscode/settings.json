@@ -19,6 +19,7 @@
         "typeinfo": "cpp",
         "memory": "cpp",
         "string": "cpp",
-        "fstream": "cpp"
+        "fstream": "cpp",
+        "shared_mutex": "cpp"
     }
 }
