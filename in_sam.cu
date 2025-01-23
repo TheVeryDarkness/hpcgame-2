@@ -62,16 +62,15 @@ int main(){
     fi = fopen("in.data", "rb");
     d3_t src;
     int64_t mirn,senn;
-    d3_t* mir, * sen;
 
     fread(&src, 1, sizeof(d3_t), fi);
     
     fread(&mirn, 1, sizeof(int64_t), fi);
-    mir = (d3_t*)malloc(mirn * sizeof(d3_t));
+    d3_t* mir = (d3_t*)malloc(mirn * sizeof(d3_t));
     fread(mir, 1, mirn * sizeof(d3_t), fi);
 
     fread(&senn, 1, sizeof(int64_t), fi);
-    sen = (d3_t*)malloc(senn * sizeof(d3_t));
+    d3_t* sen = (d3_t*)malloc(senn * sizeof(d3_t));
     fread(sen, 1, senn * sizeof(d3_t), fi);
 
     fclose(fi);
