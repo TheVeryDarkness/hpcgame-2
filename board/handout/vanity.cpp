@@ -84,7 +84,6 @@ void *run(void *arg) {
     secp256k1_context* ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN); 
 
     uint8_t privateKey[32];
-    std::string address;
 
     while (true) {  
         {
@@ -101,16 +100,16 @@ void *run(void *arg) {
         const std::string &vanityPrefix = vanityPrefixes[i];
 
         generateRandomPrivateKey(privateKey, gen);  
-        address = computeEthereumAddress(ctx, privateKey);  
+        const std::string address = computeEthereumAddress(ctx, privateKey);  
         if (address.substr(2, vanityPrefix.size()) == vanityPrefix) {  
             std::clog << "Thread " << init << " found vanity " << i << '\n';
-            i = (i + 1) % MAX_VANITY_LENGTH;
             {
                 std::unique_lock lock(mtx[i]);
-                addresses[i] = std::move(address);
+                addresses[i] = address;
                 memcpy(privateKeys[i], privateKey, sizeof(privateKey));
                 found[i] = true;
             }
+            i = (i + 1) % MAX_VANITY_LENGTH;
         }  
     }  
     secp256k1_context_destroy(ctx);  
