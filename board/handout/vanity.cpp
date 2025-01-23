@@ -1,3 +1,4 @@
+#include <atomic>  
 #include <iostream>  
 #include <iomanip>  
 #include <sstream>  
@@ -118,7 +119,7 @@ void *run(void *arg) {
 }
 
 int main(int argc, char* argv[]) {
-    static_assert(std::atomic_bool::is_always_lock_free());
+    static_assert(std::atomic_bool::is_always_lock_free);
     std::ifstream infile("vanity.in");
     std::ofstream outfile("vanity.out");
 
