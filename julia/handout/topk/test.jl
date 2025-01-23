@@ -12,11 +12,11 @@ f64_1m = randn(Float64, 1 << 20)
 
 # 1M
 println("Testing on 1M data...")
-res, time_i64_1m = @timed topk(i64_1m, 1 << 8)
+res, time_i64_1m = @report_opt @timed topk(i64_1m, 1 << 8)
 ref, time_i64_1m_base = @timed partialsortperm(i64_1m, 1:1 << 8, rev=true)
 @assert all(res .== ref) "Failed for Int64 1M"
 
-res, time_f64_1m = @timed topk(f64_1m, 1 << 8)
+res, time_f64_1m = @report_opt @timed topk(f64_1m, 1 << 8)
 ref, time_f64_1m_base = @timed partialsortperm(f64_1m, 1:1 << 8, rev=true)
 @assert all(res .== ref) "Failed for Float64 1M"
 
