@@ -16,6 +16,8 @@ static inline vector<int32_t> solve_linear_system(const int32_t n, const int32_t
     constexpr int nl[5][2] = {{0, 1}, {0, -1}, {1, 0}, {-1, 0}, {0, 0}};
 
     // 创建矩阵和向量
+
+    // 模 3 意义下的线性方程组的系数矩阵
     vector<vector<int32_t>> a(n, vector<int32_t>(n, 0));
     vector<int32_t> y(n, 0);
     assert(n1 * n2 == m.size());
@@ -24,15 +26,17 @@ static inline vector<int32_t> solve_linear_system(const int32_t n, const int32_t
     // 填充矩阵和向量
     for (int i = 0; i < n2; ++i) {
         for (int j = 0; j < n1; ++j) {
-            int ci = im[i * n1 + j];
-            if (ci >= 0) {
+            const int ci = im[i * n1 + j];
+            assert(ci < n);
+            if (m[i * n1 + j] > 0) {
                 y[ci] = 3 - m[i * n1 + j];
                 for (const auto& direction : nl) {
-                    int i_ = i + direction[0];
-                    int j_ = j + direction[1];
+                    const int i_ = i + direction[0];
+                    const int j_ = j + direction[1];
                     if (i_ >= 0 && i_ < n2 && j_ >= 0 && j_ < n1) {
-                        int ci_ = im[i_ * n1 + j_];
-                        if (ci_ >= 0) {
+                        const int ci_ = im[i_ * n1 + j_];
+                        assert(ci_ < n);
+                        if (im[i_ * n1 + j_] > 0) {
                             a[ci_][ci] = 1;
                         }
                     }
@@ -103,6 +107,7 @@ int main() {
     infile.read(reinterpret_cast<char*>(m.data()), n2 * n1 * sizeof(int32_t));
     infile.close();
 
+    // 非零元素对应的未知数编号
     vector<int32_t> im(n2 * n1, -1);
     // 非零元素的个数
     int count = 0;
@@ -131,7 +136,7 @@ int main() {
             if (ci >= 0) {
                 x[i * n1 + j] = x_t[ci];
             }
-            // cout << "x[" << i << "][" << j << "] = " << x[i * n1 + j] << endl;
+            cout << "x[" << i << "][" << j << "] = " << x[i * n1 + j] << endl;
         }
     }
 
