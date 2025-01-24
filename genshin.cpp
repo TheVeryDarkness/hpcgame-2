@@ -1,24 +1,147 @@
+#include <array>
+#include <algorithm>
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <valarray>
 #include <cassert>
 
 using namespace std;
 
 using cell_t = int8_t;
 
-#define NDEBUG
-#ifndef NDEBUG
-static inline void show_matrix(const vector<vector<cell_t>> &a, const vector<cell_t> &y) {
-    for (int i = 0; i < a.size(); ++i) {
-        for (int j = 0; j < a[i].size(); ++j) {
-            cout << a[i][j] << " ";
+struct sparse_matrix_pair {
+    int32_t index;
+    cell_t value;
+    sparse_matrix_pair(int32_t index, cell_t value) : index(index), value(value) {}
+
+    bool operator<(const sparse_matrix_pair &rhs) const {
+        return index < rhs.index;
+    }
+    bool operator>(const sparse_matrix_pair &rhs) const {
+        return index > rhs.index;
+    }
+
+    sparse_matrix_pair &operator+=(const sparse_matrix_pair &rhs) {
+        value += rhs.value;
+        value %= 3;
+        return *this;
+    }
+    sparse_matrix_pair &operator-=(const sparse_matrix_pair &rhs) {
+        value -= rhs.value;
+        value += 3;
+        value %= 3;
+        return *this;
+    }
+};
+
+class sparse_matrix_pairs {
+    vector<sparse_matrix_pair> pairs;
+
+    void sort_indices() {
+        for (int32_t i = 0; i < pairs.size(); ) {
+            if (pairs[i].value == 0) {
+                swap(pairs[i], pairs.back());
+                pairs.pop_back();
+            } else {
+                ++i;
+            }
         }
-        cout << "= " << y[i] << endl;
+        sort(pairs.begin(), pairs.end());
+    }
+
+public:
+    sparse_matrix_pairs(vector<sparse_matrix_pair> indices) : pairs(std::move(indices)) {
+        assert(is_sorted(pairs.begin(), pairs.end()));
+    }
+    sparse_matrix_pairs &operator-=(const sparse_matrix_pairs &rhs) {
+        pairs.reserve(pairs.size() + rhs.pairs.size());
+        auto lhs_it = pairs.begin();
+        auto rhs_it = rhs.pairs.begin();
+        while (lhs_it != pairs.end() && rhs_it != rhs.pairs.end()) {
+            if (*lhs_it < *rhs_it) {
+                ++lhs_it;
+            } else if (*lhs_it > *rhs_it) {
+                pairs.insert(lhs_it, *rhs_it);
+                ++rhs_it;
+            } else {
+                lhs_it->value -= rhs_it->value;
+                lhs_it->value += 3;
+                lhs_it->value %= 3;
+                ++lhs_it;
+                ++rhs_it;
+            }
+        }
+        while (rhs_it != rhs.pairs.end()) {
+            pairs.push_back(*rhs_it);
+            ++rhs_it;
+        }
+
+        sort_indices();
+        return *this;
+    }
+
+    bool operator<(const sparse_matrix_pairs &rhs) const {
+        return pairs < rhs.pairs;
+    }
+
+    void normalize(cell_t &y) {
+        assert(is_sorted(pairs.begin(), pairs.end()));
+        assert(!pairs.empty());
+        if (pairs[0].value == 2) {
+            for (auto &pair : pairs) {
+                pair.value *= 2;
+                pair.value %= 3;
+            }
+            y *= 2;
+            y %= 3;
+        }
+        assert(pairs[0].value == 1);
+    }
+
+    // Use `(this, yi)` to eliminate `(rhs, yj)`.
+    void eliminate(const cell_t &yi, sparse_matrix_pairs &rhs, cell_t &yj) const {
+        assert(!pairs.empty());
+        assert(!rhs.pairs.empty());
+        assert(pairs[0].value == 1);
+        assert(pairs[0].index <= rhs.pairs[0].index);
+
+        if (pairs[0].index == rhs.pairs[0].index) {
+            const cell_t delta = 3 - pairs[0].value;
+            yj += yi * delta;
+            yj %= 3;
+            for (int32_t i = 1, j = 1; i < pairs.size() && j < rhs.pairs.size(); ) {
+                if (pairs[i].index < rhs.pairs[j].index) {
+                    rhs.pairs.insert(rhs.pairs.begin() + j, {pairs[i].index, pairs[i].value * delta % 3});
+                    ++i;
+                } else if (pairs[i].index > rhs.pairs[j].index) {
+                    ++j;
+                } else {
+                    rhs.pairs[j].value += yi * delta;
+                    rhs.pairs[j].value %= 3;
+                    ++i;
+                    ++j;
+                }
+            }
+            rhs.sort_indices();
+        }
+    }
+
+    void print() const {
+        for (const auto &pair : pairs) {
+            cout << '(' << pair.index << " = " << (int32_t)pair.value << ')';
+        }
+    }
+};
+
+void show_matrix(const vector<sparse_matrix_pairs> &a, const vector<cell_t> &y) {
+    for (int i = 0; i < a.size(); ++i) {
+        cout << i << ": ";
+        a[i].print();
+        cout << " = " << (int32_t)y[i] << endl;
     }
 }
-#endif
+
+// #define NDEBUG
 
 // 该函数用于求解模 3 意义下的线性方程组
 //
@@ -29,12 +152,13 @@ static inline void show_matrix(const vector<vector<cell_t>> &a, const vector<cel
 template<int32_t n1, int32_t n2>
 static inline vector<cell_t> solve_linear_system(const int32_t n, const vector<int32_t> &m, const vector<int32_t> &im) {
     // 方向数组
-    constexpr int nl[5][2] = {{0, 1}, {0, -1}, {1, 0}, {-1, 0}, {0, 0}};
+    constexpr int nl[5][2] = {{-1, 0}, {0, -1}, {0, 0}, {0, 1}, {1, 0}};
 
     // 创建矩阵和向量
 
     // 模 3 意义下的线性方程组的系数矩阵
-    vector<valarray<cell_t>> a(n, valarray<cell_t>(n));
+    vector<sparse_matrix_pairs> a;
+    a.reserve(n);
     vector<cell_t> y(n, 0);
     assert(n1 * n2 == m.size());
     assert(n1 * n2 == im.size());
@@ -46,6 +170,7 @@ static inline vector<cell_t> solve_linear_system(const int32_t n, const vector<i
             assert(ci < n);
             if (ci >= 0) {
                 y[ci] = 3 - m[i * n1 + j];
+                vector<sparse_matrix_pair> pairs;
                 for (const auto& direction : nl) {
                     const int i_ = i + direction[0];
                     const int j_ = j + direction[1];
@@ -53,59 +178,30 @@ static inline vector<cell_t> solve_linear_system(const int32_t n, const vector<i
                         const int ci_ = im[i_ * n1 + j_];
                         assert(ci_ < n);
                         if (ci_ >= 0) {
-                            a[ci_][ci] = 1;
+                            pairs.emplace_back(ci_, 1);
                         }
                     }
                 }
+                a.push_back(sparse_matrix_pairs(std::move(pairs)));
             }
         }
     }
+
+    sort(a.begin(), a.end());
 
 #ifndef NDEBUG
     show_matrix(a, y);
 #endif
 
     for (int32_t i = 0; i < n; ++i) {
-        // 找到第 i 个方程中第 i 个未知数的系数不为 0 的方程
-        int32_t j = i;
-        while (j < n && a[j][i] == 0) {
-            ++j;
-        }
-        assert(j < n);
-
-        // 交换第 i 个方程和第 j 个方程
-        if (i != j) {
-            swap(a[i], a[j]);
-            swap(y[i], y[j]);
-        }
-
         // 将第 i 个方程中第 i 个未知数的系数变为 1
-        if (a[i][i] == 2) {
-            for (int32_t j = i; j < n; ++j) {
-                a[i][j] *= 2;
-                a[i][j] %= 3;
-            }
-            y[i] *= 2;
-            y[i] %= 3;
-        }
-        assert(a[i][i] == 1);
+        a[i].normalize(y[i]);
 
         // 将第 j 个方程中第 i 个未知数的系数变为 0
         #pragma omp parallel for schedule(static)
         for (int32_t j = 0; j < n; ++j) {
             if (j != i) {
-                if (a[j][i] == 2) {
-                    a[j] += a[i];
-                    a[j] %= 3;
-                    y[j] += y[i];
-                    y[j] %= 3;
-                } else if (a[j][i] == 1) {
-                    a[j] += a[i];
-                    a[j] += a[i];
-                    a[j] %= 3;
-                    y[j] += 2 * y[i];
-                    y[j] %= 3;
-                }
+                a[j].eliminate(y[i], a[i], y[j]);
             }
         }
 
