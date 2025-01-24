@@ -1,6 +1,6 @@
 import numpy
-n1=16
-n2=16
+n1=3
+n2=3
 x=numpy.zeros(2+n1*n2,dtype=numpy.int32)
 x[0]=n1
 x[1]=n2

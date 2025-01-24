@@ -5,6 +5,15 @@
 
 using namespace std;
 
+static inline void show_matrix(const vector<vector<int32_t>> &a, const vector<int32_t> &y) {
+    for (int i = 0; i < a.size(); ++i) {
+        for (int j = 0; j < a[i].size(); ++j) {
+            cout << a[i][j] << " ";
+        }
+        cout << "= " << y[i] << endl;
+    }
+}
+
 // 该函数用于求解模 3 意义下的线性方程组
 //
 // 参数：
@@ -28,7 +37,7 @@ static inline vector<int32_t> solve_linear_system(const int32_t n, const int32_t
         for (int j = 0; j < n1; ++j) {
             const int ci = im[i * n1 + j];
             assert(ci < n);
-            if (m[i * n1 + j] > 0) {
+            if (ci >= 0) {
                 y[ci] = 3 - m[i * n1 + j];
                 for (const auto& direction : nl) {
                     const int i_ = i + direction[0];
@@ -36,7 +45,7 @@ static inline vector<int32_t> solve_linear_system(const int32_t n, const int32_t
                     if (i_ >= 0 && i_ < n2 && j_ >= 0 && j_ < n1) {
                         const int ci_ = im[i_ * n1 + j_];
                         assert(ci_ < n);
-                        if (im[i_ * n1 + j_] > 0) {
+                        if (ci_ >= 0) {
                             a[ci_][ci] = 1;
                         }
                     }
@@ -45,12 +54,13 @@ static inline vector<int32_t> solve_linear_system(const int32_t n, const int32_t
         }
     }
 
-    for (int i = 0; i < n; ++i) {
-        for (int j = 0; j < n; ++j) {
-            cout << a[i][j] << " ";
-        }
-        cout << "= " << y[i] << endl;
-    }
+    // for (int i = 0; i < n; ++i) {
+    //     for (int j = 0; j < n; ++j) {
+    //         cout << a[i][j] << " ";
+    //     }
+    //     cout << "= " << y[i] << endl;
+    // }
+    show_matrix(a, y);
 
     for (int32_t i = 0; i < n; ++i) {
         // 找到第 i 个方程中第 i 个未知数的系数不为 0 的方程
@@ -80,14 +90,25 @@ static inline vector<int32_t> solve_linear_system(const int32_t n, const int32_t
         // 将第 j 个方程中第 i 个未知数的系数变为 0
         for (int32_t j = 0; j < n; ++j) {
             if (j != i) {
-                for (int32_t k = i; k < n; ++k) {
-                    a[j][k] -= a[i][k];
-                    a[j][k] = (a[j][k] + 3) % 3;
+                if (a[j][i] == 2) {
+                    for (int32_t k = i; k < n; ++k) {
+                        a[j][k] += a[i][k];
+                        a[j][k] %= 3;
+                    }
+                    y[j] += y[i];
+                    y[j] %= 3;
+                } else if (a[j][i] == 1) {
+                    for (int32_t k = i; k < n; ++k) {
+                        a[j][k] += 2 * a[i][k];
+                        a[j][k] %= 3;
+                    }
+                    y[j] += 2 * y[i];
+                    y[j] %= 3;
                 }
-                y[j] -= y[i];
-                y[j] = (y[j] + 3) % 3;
             }
         }
+        cout << "第" << i << "次消元" << endl;
+        show_matrix(a, y);
     }
 
     // 返回解
@@ -128,6 +149,11 @@ int main() {
     vector<int32_t> x_t = solve_linear_system(count, n1, n2, m, im);
     assert(x_t.size() == count);
 
+    for (int i = 0; i < count; ++i) {
+        cout << x_t[i] << ' ';
+    }
+    cout << endl;
+
     // 填充输出数组
     vector<int32_t> x(n2 * n1, 0);
     for (int i = 0; i < n2; ++i) {
@@ -135,8 +161,8 @@ int main() {
             int ci = im[i * n1 + j];
             if (ci >= 0) {
                 x[i * n1 + j] = x_t[ci];
+                cout << "x[" << i << "][" << j << "] = " << x[i * n1 + j] << endl;
             }
-            cout << "x[" << i << "][" << j << "] = " << x[i * n1 + j] << endl;
         }
     }
 
