@@ -209,8 +209,7 @@ void show_matrix(const vector<sparse_matrix_pairs> &a) {
 //   a: 线性方程组的系数矩阵，a[i][j] 表示第 i 个方程中第 j 个未知数的系数，大小为 (n, n+1)
 // 返回值：
 //   一个 vector<cell_t>，表示线性方程组的解，大小为 n
-template<int32_t n1, int32_t n2>
-static inline vector<cell_t> solve_linear_system(const int32_t n, const vector<int32_t> &m, const vector<int32_t> &im) {
+static inline vector<cell_t> solve_linear_system(const int32_t n, const int32_t n1, const int32_t n2, const vector<int32_t> &m, const vector<int32_t> &im) {
     // 方向数组
     constexpr int nl[5][2] = {{-1, 0}, {0, -1}, {0, 0}, {0, 1}, {1, 0}};
 
@@ -256,7 +255,7 @@ static inline vector<cell_t> solve_linear_system(const int32_t n, const vector<i
         a[i].normalize();
 
         // 将第 j 个方程中第 i 个未知数的系数变为 0
-        // #pragma omp parallel for schedule(static)
+        #pragma omp parallel for schedule(static)
         for (int32_t j = 0; j < n; ++j) {
             if (j != i) {
                 a[i].eliminate(a[j]);
@@ -279,8 +278,7 @@ static inline vector<cell_t> solve_linear_system(const int32_t n, const vector<i
     return y;
 }
 
-template<int32_t n1, int32_t n2>
-static inline void solve(ifstream &infile) {
+static inline void solve(ifstream &infile, const int32_t n1, const int32_t n2) {
     vector<int32_t> m(n2 * n1);
     infile.read(reinterpret_cast<char*>(m.data()), n2 * n1 * sizeof(int32_t));
     infile.close();
@@ -303,7 +301,7 @@ static inline void solve(ifstream &infile) {
     // 注意：C++没有内置的求解线性方程组的功能，您可以使用Eigen或其他库。
     // 这里我们假设有一个函数solve_linear_system来处理这个问题。
     // vector<int32_t> x_t(ci);
-    vector<cell_t> x_t = solve_linear_system<n1, n2>(count, m, im);
+    vector<cell_t> x_t = solve_linear_system(count, n1, n2, m, im);
     assert(x_t.size() == count);
 
 #ifdef _DEBUG
@@ -343,18 +341,7 @@ int main() {
     infile.read(reinterpret_cast<char*>(&n1), sizeof(int32_t));
     infile.read(reinterpret_cast<char*>(&n2), sizeof(int32_t));
 
-    if (n1 == 4) {
-        solve<4, 4>(infile);
-    } else if (n1 == 512) {
-        if (n2 == 512) {
-            solve<512, 512>(infile);
-        } else if (n2 == 1024) {
-            solve<512, 1024>(infile);
-        }
-    } else if (n1 == 128) {
-        if (n2 == 128) {
-            solve<128, 128>(infile);
-        }
-    }
+    solve(infile, n1, n2);
+
     return 0;
 }
