@@ -119,7 +119,9 @@ public:
     }
 
     // Use `(this, yi)` to eliminate `(rhs, yj)`.
-    void eliminate(sparse_matrix_pairs &rhs) const {
+    // The result is `(rhs, yj) = (rhs, yj) - (this, yi) * delta`.
+    // Return true if some elements are eliminated.
+    bool eliminate(sparse_matrix_pairs &rhs) const {
 #ifdef _DEBUG
         this->print();
         cout << " eliminates ";
@@ -137,14 +139,14 @@ public:
 #ifdef _DEBUG
                 cout << " skipped" << endl;
 #endif
-                return;
+                return false;
             }
         }
         if (pairs[i0].index < rhs.pairs[j0].index) {
 #ifdef _DEBUG
             cout << " skipped" << endl;
 #endif
-            return;
+            return false;
         }
         assert(pairs[i0].index == rhs.pairs[j0].index);
 
@@ -179,6 +181,7 @@ public:
         cout << endl;
 #endif
         rhs.sort_indices();
+        return true;
     }
 
     void print() const {
@@ -209,7 +212,7 @@ void show_matrix(const vector<sparse_matrix_pairs> &a) {
 //   a: 线性方程组的系数矩阵，a[i][j] 表示第 i 个方程中第 j 个未知数的系数，大小为 (n, n+1)
 // 返回值：
 //   一个 vector<cell_t>，表示线性方程组的解，大小为 n
-static inline vector<cell_t> solve_linear_system(const int32_t n, const int32_t n1, const int32_t n2, const vector<int32_t> &m, const vector<int32_t> &im) {
+static inline vector<sparse_matrix_pairs> solve_linear_system(const int32_t n, const int32_t n1, const int32_t n2, const vector<int32_t> &m, const vector<int32_t> &im) {
     // 方向数组
     constexpr int nl[5][2] = {{-1, 0}, {0, -1}, {0, 0}, {0, 1}, {1, 0}};
 
@@ -256,9 +259,13 @@ static inline vector<cell_t> solve_linear_system(const int32_t n, const int32_t 
 
         // 将第 j 个方程中第 i 个未知数的系数变为 0
         #pragma omp parallel for schedule(static)
-        for (int32_t j = 0; j < n; ++j) {
-            if (j != i) {
-                a[i].eliminate(a[j]);
+        for (int32_t j = 0; j < i; ++j) {
+            a[i].eliminate(a[j]);
+        }
+        for (int32_t j = i + 1; j < n; ++j) {
+            const bool x = a[i].eliminate(a[j]);
+            if (!x) {
+                break;
             }
         }
 
@@ -271,11 +278,7 @@ static inline vector<cell_t> solve_linear_system(const int32_t n, const int32_t 
     }
 
     // 返回解
-    vector<cell_t> y(n);
-    for (int32_t i = 0; i < n; ++i) {
-        y[i] = a[i].get_y();
-    }
-    return y;
+    return a;
 }
 
 static inline void solve(ifstream &infile, const int32_t n1, const int32_t n2) {
@@ -301,7 +304,7 @@ static inline void solve(ifstream &infile, const int32_t n1, const int32_t n2) {
     // 注意：C++没有内置的求解线性方程组的功能，您可以使用Eigen或其他库。
     // 这里我们假设有一个函数solve_linear_system来处理这个问题。
     // vector<int32_t> x_t(ci);
-    vector<cell_t> x_t = solve_linear_system(count, n1, n2, m, im);
+    vector<sparse_matrix_pairs> x_t = solve_linear_system(count, n1, n2, m, im);
     assert(x_t.size() == count);
 
 #ifdef _DEBUG
@@ -317,7 +320,7 @@ static inline void solve(ifstream &infile, const int32_t n1, const int32_t n2) {
         for (int j = 0; j < n1; ++j) {
             int ci = im[i * n1 + j];
             if (ci >= 0) {
-                x[i * n1 + j] = x_t[ci];
+                x[i * n1 + j] = x_t[ci].get_y();
 #ifdef _DEBUG
                 cout << "x[" << i << "][" << j << "] = " << x[i * n1 + j] << endl;
 #endif
