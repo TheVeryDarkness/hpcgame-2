@@ -262,7 +262,7 @@ static inline vector<cell_t> solve_linear_system(const int32_t n, const int32_t 
             }
         }
 
-        sort(a.begin(), a.end());
+        sort(a.begin() + i + 1, a.end());
 
 #ifdef _DEBUG
         cout << "第" << i << "次消元" << endl;
