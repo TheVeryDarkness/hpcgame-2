@@ -31,7 +31,7 @@ int main() {
     }
 
     // 方向数组
-    constexpr static inline int nl[5][2] = {{0, 1}, {0, -1}, {1, 0}, {-1, 0}, {0, 0}};
+    constexpr int nl[5][2] = {{0, 1}, {0, -1}, {1, 0}, {-1, 0}, {0, 0}};
 
     // 创建矩阵和向量
     vector<vector<int32_t>> a(ci, vector<int32_t>(ci, 0));
