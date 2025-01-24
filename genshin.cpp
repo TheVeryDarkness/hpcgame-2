@@ -1,3 +1,4 @@
+#define NDEBUG
 #include <array>
 #include <algorithm>
 #include <iostream>
@@ -14,7 +15,6 @@ using cell_t = int8_t;
 #ifdef _DEBUG
 #undef _DEBUG
 #endif
-#define NDEBUG
 
 struct sparse_matrix_pair {
     int32_t index;

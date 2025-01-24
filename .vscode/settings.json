@@ -26,6 +26,7 @@
         "valarray": "cpp",
         "array": "cpp",
         "deque": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "cassert": "cpp"
     }
 }
