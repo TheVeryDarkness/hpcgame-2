@@ -5,6 +5,8 @@
 
 using namespace std;
 
+#define NDEBUG
+#ifndef NDEBUG
 static inline void show_matrix(const vector<vector<int32_t>> &a, const vector<int32_t> &y) {
     for (int i = 0; i < a.size(); ++i) {
         for (int j = 0; j < a[i].size(); ++j) {
@@ -13,22 +15,25 @@ static inline void show_matrix(const vector<vector<int32_t>> &a, const vector<in
         cout << "= " << y[i] << endl;
     }
 }
+#endif
+
+using cell_t = int8_t;
 
 // 该函数用于求解模 3 意义下的线性方程组
 //
 // 参数：
 //   a: 线性方程组的系数矩阵，a[i][j] 表示第 i 个方程中第 j 个未知数的系数，大小为 (n, n+1)
 // 返回值：
-//   一个 vector<int32_t>，表示线性方程组的解，大小为 n
-static inline vector<int32_t> solve_linear_system(const int32_t n, const int32_t n1, const int32_t n2, const vector<int32_t> &m, const vector<int32_t> &im) {
+//   一个 vector<cell_t>，表示线性方程组的解，大小为 n
+static inline vector<cell_t> solve_linear_system(const int32_t n, const int32_t n1, const int32_t n2, const vector<int32_t> &m, const vector<int32_t> &im) {
     // 方向数组
     constexpr int nl[5][2] = {{0, 1}, {0, -1}, {1, 0}, {-1, 0}, {0, 0}};
 
     // 创建矩阵和向量
 
     // 模 3 意义下的线性方程组的系数矩阵
-    vector<vector<int32_t>> a(n, vector<int32_t>(n, 0));
-    vector<int32_t> y(n, 0);
+    vector<vector<cell_t>> a(n, vector<cell_t>(n, 0));
+    vector<cell_t> y(n, 0);
     assert(n1 * n2 == m.size());
     assert(n1 * n2 == im.size());
 
@@ -54,13 +59,9 @@ static inline vector<int32_t> solve_linear_system(const int32_t n, const int32_t
         }
     }
 
-    // for (int i = 0; i < n; ++i) {
-    //     for (int j = 0; j < n; ++j) {
-    //         cout << a[i][j] << " ";
-    //     }
-    //     cout << "= " << y[i] << endl;
-    // }
+#ifndef NDEBUG
     show_matrix(a, y);
+#endif
 
     for (int32_t i = 0; i < n; ++i) {
         // 找到第 i 个方程中第 i 个未知数的系数不为 0 的方程
@@ -88,6 +89,7 @@ static inline vector<int32_t> solve_linear_system(const int32_t n, const int32_t
         assert(a[i][i] == 1);
 
         // 将第 j 个方程中第 i 个未知数的系数变为 0
+        #pragma omp parallel for schedule(static)
         for (int32_t j = 0; j < n; ++j) {
             if (j != i) {
                 if (a[j][i] == 2) {
@@ -107,8 +109,11 @@ static inline vector<int32_t> solve_linear_system(const int32_t n, const int32_t
                 }
             }
         }
+
+#ifndef NDEBUG
         cout << "第" << i << "次消元" << endl;
         show_matrix(a, y);
+#endif
     }
 
     // 返回解
@@ -146,13 +151,15 @@ int main() {
     // 注意：C++没有内置的求解线性方程组的功能，您可以使用Eigen或其他库。
     // 这里我们假设有一个函数solve_linear_system来处理这个问题。
     // vector<int32_t> x_t(ci);
-    vector<int32_t> x_t = solve_linear_system(count, n1, n2, m, im);
+    vector<cell_t> x_t = solve_linear_system(count, n1, n2, m, im);
     assert(x_t.size() == count);
 
+#ifndef NDEBUG
     for (int i = 0; i < count; ++i) {
         cout << x_t[i] << ' ';
     }
     cout << endl;
+#endif
 
     // 填充输出数组
     vector<int32_t> x(n2 * n1, 0);
@@ -161,7 +168,9 @@ int main() {
             int ci = im[i * n1 + j];
             if (ci >= 0) {
                 x[i * n1 + j] = x_t[ci];
+#ifndef NDEBUG
                 cout << "x[" << i << "][" << j << "] = " << x[i * n1 + j] << endl;
+#endif
             }
         }
     }
