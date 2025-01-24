@@ -3,6 +3,7 @@ x=numpy.fromfile('in.data',dtype=numpy.int32)
 n1=x[0]
 n2=x[1]
 m=x[2:].reshape((n2,n1))
+print(m)
 
 m_=numpy.fromfile('out.data',dtype=numpy.int32).reshape((n2,n1))
 print(m_)
@@ -13,5 +14,6 @@ m__[:,1:]+=m_[:,:-1]
 m__[:,:-1]+=m_[:,1:]
 m__[1:,:]+=m_[:-1,:]
 m__[:-1,:]+=m_[1:,:]
-assert(((m+m__)%3*m==0).all()) # 所有方块状态为3
+print(m__)
 assert(((m==0)*m_==0).all())   # 没有方块的位置必须是0
+assert(((m+m__)%3*m==0).all()) # 所有方块状态为3
