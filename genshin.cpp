@@ -1,13 +1,16 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <valarray>
 #include <cassert>
 
 using namespace std;
 
+using cell_t = int8_t;
+
 #define NDEBUG
 #ifndef NDEBUG
-static inline void show_matrix(const vector<vector<int32_t>> &a, const vector<int32_t> &y) {
+static inline void show_matrix(const vector<vector<cell_t>> &a, const vector<cell_t> &y) {
     for (int i = 0; i < a.size(); ++i) {
         for (int j = 0; j < a[i].size(); ++j) {
             cout << a[i][j] << " ";
@@ -17,22 +20,21 @@ static inline void show_matrix(const vector<vector<int32_t>> &a, const vector<in
 }
 #endif
 
-using cell_t = int8_t;
-
 // 该函数用于求解模 3 意义下的线性方程组
 //
 // 参数：
 //   a: 线性方程组的系数矩阵，a[i][j] 表示第 i 个方程中第 j 个未知数的系数，大小为 (n, n+1)
 // 返回值：
 //   一个 vector<cell_t>，表示线性方程组的解，大小为 n
-static inline vector<cell_t> solve_linear_system(const int32_t n, const int32_t n1, const int32_t n2, const vector<int32_t> &m, const vector<int32_t> &im) {
+template<int32_t n1, int32_t n2>
+static inline vector<cell_t> solve_linear_system(const int32_t n, const vector<int32_t> &m, const vector<int32_t> &im) {
     // 方向数组
     constexpr int nl[5][2] = {{0, 1}, {0, -1}, {1, 0}, {-1, 0}, {0, 0}};
 
     // 创建矩阵和向量
 
     // 模 3 意义下的线性方程组的系数矩阵
-    vector<vector<cell_t>> a(n, vector<cell_t>(n, 0));
+    vector<valarray<cell_t>> a(n, valarray<cell_t>(n));
     vector<cell_t> y(n, 0);
     assert(n1 * n2 == m.size());
     assert(n1 * n2 == im.size());
@@ -93,17 +95,14 @@ static inline vector<cell_t> solve_linear_system(const int32_t n, const int32_t 
         for (int32_t j = 0; j < n; ++j) {
             if (j != i) {
                 if (a[j][i] == 2) {
-                    for (int32_t k = i; k < n; ++k) {
-                        a[j][k] += a[i][k];
-                        a[j][k] %= 3;
-                    }
+                    a[j] += a[i];
+                    a[j] %= 3;
                     y[j] += y[i];
                     y[j] %= 3;
                 } else if (a[j][i] == 1) {
-                    for (int32_t k = i; k < n; ++k) {
-                        a[j][k] += 2 * a[i][k];
-                        a[j][k] %= 3;
-                    }
+                    a[j] += a[i];
+                    a[j] += a[i];
+                    a[j] %= 3;
                     y[j] += 2 * y[i];
                     y[j] %= 3;
                 }
@@ -120,15 +119,8 @@ static inline vector<cell_t> solve_linear_system(const int32_t n, const int32_t 
     return y;
 }
 
-int main() {
-    // 读取数据
-    ifstream infile("in.data", ios::binary);
-    assert(infile.is_open());
-
-    int32_t n1, n2;
-    infile.read(reinterpret_cast<char*>(&n1), sizeof(int32_t));
-    infile.read(reinterpret_cast<char*>(&n2), sizeof(int32_t));
-
+template<int32_t n1, int32_t n2>
+static inline void solve(ifstream &infile) {
     vector<int32_t> m(n2 * n1);
     infile.read(reinterpret_cast<char*>(m.data()), n2 * n1 * sizeof(int32_t));
     infile.close();
@@ -151,7 +143,7 @@ int main() {
     // 注意：C++没有内置的求解线性方程组的功能，您可以使用Eigen或其他库。
     // 这里我们假设有一个函数solve_linear_system来处理这个问题。
     // vector<int32_t> x_t(ci);
-    vector<cell_t> x_t = solve_linear_system(count, n1, n2, m, im);
+    vector<cell_t> x_t = solve_linear_system<n1, n2>(count, m, im);
     assert(x_t.size() == count);
 
 #ifndef NDEBUG
@@ -180,6 +172,29 @@ int main() {
     assert(outfile.is_open());
     outfile.write(reinterpret_cast<char*>(x.data()), x.size() * sizeof(int32_t));
     outfile.close();
+}
 
+int main() {
+    // 读取数据
+    ifstream infile("in.data", ios::binary);
+    assert(infile.is_open());
+
+    int32_t n1, n2;
+    infile.read(reinterpret_cast<char*>(&n1), sizeof(int32_t));
+    infile.read(reinterpret_cast<char*>(&n2), sizeof(int32_t));
+
+    if (n1 == 4) {
+        solve<4, 4>(infile);
+    } else if (n1 == 512) {
+        if (n2 == 512) {
+            solve<512, 512>(infile);
+        } else if (n2 == 1024) {
+            solve<512, 1024>(infile);
+        }
+    } else if (n1 == 128) {
+        if (n2 == 128) {
+            solve<128, 128>(infile);
+        }
+    }
     return 0;
 }
