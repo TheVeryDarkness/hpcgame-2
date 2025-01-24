@@ -184,18 +184,21 @@ public:
         return true;
     }
 
+#ifdef _DEBUG
     void print() const {
         for (const auto &pair : pairs) {
             cout << '(' << pair.index << " = " << (int32_t)pair.value << ')';
         }
         cout << " = " << (int32_t)y;
     }
+#endif
 
     cell_t get_y() const {
         return y;
     }
 };
 
+#ifdef _DEBUG
 void show_matrix(const vector<sparse_matrix_pairs> &a) {
     for (int i = 0; i < a.size(); ++i) {
         cout << i << ": ";
@@ -203,6 +206,7 @@ void show_matrix(const vector<sparse_matrix_pairs> &a) {
         cout << endl;
     }
 }
+#endif
 
 // #define NDEBUG
 
