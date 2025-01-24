@@ -24,6 +24,8 @@
         "iostream": "cpp",
         "vector": "cpp",
         "valarray": "cpp",
-        "array": "cpp"
+        "array": "cpp",
+        "deque": "cpp",
+        "variant": "cpp"
     }
 }

@@ -9,6 +9,13 @@ using namespace std;
 
 using cell_t = int8_t;
 
+// #define _DEBUG
+
+#ifdef _DEBUG
+#undef _DEBUG
+#endif
+#define NDEBUG
+
 struct sparse_matrix_pair {
     int32_t index;
     cell_t value;
@@ -36,8 +43,15 @@ struct sparse_matrix_pair {
 
 class sparse_matrix_pairs {
     vector<sparse_matrix_pair> pairs;
+    cell_t y;
 
     void sort_indices() {
+#ifdef _DEBUG
+        cout << "before sort_indices: ";
+        print();
+        cout << endl;
+#endif
+        assert(!pairs.empty());
         for (int32_t i = 0; i < pairs.size(); ) {
             if (pairs[i].value == 0) {
                 swap(pairs[i], pairs.back());
@@ -46,45 +60,51 @@ class sparse_matrix_pairs {
                 ++i;
             }
         }
+        assert(!pairs.empty());
         sort(pairs.begin(), pairs.end());
+#ifdef _DEBUG
+        cout << "after sort_indices: ";
+        print();
+        cout << endl;
+#endif
     }
 
 public:
-    sparse_matrix_pairs(vector<sparse_matrix_pair> indices) : pairs(std::move(indices)) {
+    sparse_matrix_pairs(vector<sparse_matrix_pair> indices, cell_t y) : pairs(std::move(indices)), y(y) {
         assert(is_sorted(pairs.begin(), pairs.end()));
     }
-    sparse_matrix_pairs &operator-=(const sparse_matrix_pairs &rhs) {
-        pairs.reserve(pairs.size() + rhs.pairs.size());
-        auto lhs_it = pairs.begin();
-        auto rhs_it = rhs.pairs.begin();
-        while (lhs_it != pairs.end() && rhs_it != rhs.pairs.end()) {
-            if (*lhs_it < *rhs_it) {
-                ++lhs_it;
-            } else if (*lhs_it > *rhs_it) {
-                pairs.insert(lhs_it, *rhs_it);
-                ++rhs_it;
-            } else {
-                lhs_it->value -= rhs_it->value;
-                lhs_it->value += 3;
-                lhs_it->value %= 3;
-                ++lhs_it;
-                ++rhs_it;
-            }
-        }
-        while (rhs_it != rhs.pairs.end()) {
-            pairs.push_back(*rhs_it);
-            ++rhs_it;
-        }
+    // sparse_matrix_pairs &operator-=(const sparse_matrix_pairs &rhs) {
+    //     pairs.reserve(pairs.size() + rhs.pairs.size());
+    //     auto lhs_it = pairs.begin();
+    //     auto rhs_it = rhs.pairs.begin();
+    //     while (lhs_it != pairs.end() && rhs_it != rhs.pairs.end()) {
+    //         if (*lhs_it < *rhs_it) {
+    //             ++lhs_it;
+    //         } else if (*lhs_it > *rhs_it) {
+    //             pairs.insert(lhs_it, *rhs_it);
+    //             ++rhs_it;
+    //         } else {
+    //             lhs_it->value -= rhs_it->value;
+    //             lhs_it->value += 3;
+    //             lhs_it->value %= 3;
+    //             ++lhs_it;
+    //             ++rhs_it;
+    //         }
+    //     }
+    //     while (rhs_it != rhs.pairs.end()) {
+    //         pairs.push_back(*rhs_it);
+    //         ++rhs_it;
+    //     }
 
-        sort_indices();
-        return *this;
-    }
+    //     sort_indices();
+    //     return *this;
+    // }
 
     bool operator<(const sparse_matrix_pairs &rhs) const {
         return pairs < rhs.pairs;
     }
 
-    void normalize(cell_t &y) {
+    void normalize() {
         assert(is_sorted(pairs.begin(), pairs.end()));
         assert(!pairs.empty());
         if (pairs[0].value == 2) {
@@ -99,45 +119,85 @@ public:
     }
 
     // Use `(this, yi)` to eliminate `(rhs, yj)`.
-    void eliminate(const cell_t &yi, sparse_matrix_pairs &rhs, cell_t &yj) const {
+    void eliminate(sparse_matrix_pairs &rhs) const {
+#ifdef _DEBUG
+        this->print();
+        cout << " eliminates ";
+        rhs.print();
+#endif
+        assert(this != &rhs);
         assert(!pairs.empty());
         assert(!rhs.pairs.empty());
         assert(pairs[0].value == 1);
-        assert(pairs[0].index <= rhs.pairs[0].index);
-
-        if (pairs[0].index == rhs.pairs[0].index) {
-            const cell_t delta = 3 - pairs[0].value;
-            yj += yi * delta;
-            yj %= 3;
-            for (int32_t i = 1, j = 1; i < pairs.size() && j < rhs.pairs.size(); ) {
-                if (pairs[i].index < rhs.pairs[j].index) {
-                    rhs.pairs.insert(rhs.pairs.begin() + j, {pairs[i].index, pairs[i].value * delta % 3});
-                    ++i;
-                } else if (pairs[i].index > rhs.pairs[j].index) {
-                    ++j;
-                } else {
-                    rhs.pairs[j].value += yi * delta;
-                    rhs.pairs[j].value %= 3;
-                    ++i;
-                    ++j;
-                }
+        const int32_t i0 = 0;
+        int32_t j0 = 0;
+        while (pairs[i0].index > rhs.pairs[j0].index) {
+            ++j0;
+            if (j0 >= rhs.pairs.size()) {
+#ifdef _DEBUG
+                cout << " skipped" << endl;
+#endif
+                return;
             }
-            rhs.sort_indices();
         }
+        if (pairs[i0].index < rhs.pairs[j0].index) {
+#ifdef _DEBUG
+            cout << " skipped" << endl;
+#endif
+            return;
+        }
+        assert(pairs[i0].index == rhs.pairs[j0].index);
+
+        const cell_t delta = 3 - rhs.pairs[j0].value;
+        rhs.y += y * delta;
+        rhs.y %= 3;
+        rhs.pairs.erase(rhs.pairs.begin() + j0);
+
+        int32_t i = i0 + 1;
+        for (int32_t j = j0; i < pairs.size() && j < rhs.pairs.size(); ) {
+            if (pairs[i].index < rhs.pairs[j].index) {
+                rhs.pairs.emplace(rhs.pairs.begin() + j, pairs[i].index, pairs[i].value * delta % 3);
+                ++i;
+            } else if (pairs[i].index > rhs.pairs[j].index) {
+                ++j;
+            } else {
+                // pairs[i].index == rhs.pairs[j].index
+                rhs.pairs[j].value += pairs[i].value * delta;
+                rhs.pairs[j].value %= 3;
+                ++i;
+                ++j;
+            }
+        }
+        while (i < pairs.size()) {
+            rhs.pairs.emplace_back(pairs[i].index, pairs[i].value * delta % 3);
+            ++i;
+        }
+        
+#ifdef _DEBUG
+        cout << " to ";
+        rhs.print();
+        cout << endl;
+#endif
+        rhs.sort_indices();
     }
 
     void print() const {
         for (const auto &pair : pairs) {
             cout << '(' << pair.index << " = " << (int32_t)pair.value << ')';
         }
+        cout << " = " << (int32_t)y;
+    }
+
+    cell_t get_y() const {
+        return y;
     }
 };
 
-void show_matrix(const vector<sparse_matrix_pairs> &a, const vector<cell_t> &y) {
+void show_matrix(const vector<sparse_matrix_pairs> &a) {
     for (int i = 0; i < a.size(); ++i) {
         cout << i << ": ";
         a[i].print();
-        cout << " = " << (int32_t)y[i] << endl;
+        cout << endl;
     }
 }
 
@@ -159,7 +219,6 @@ static inline vector<cell_t> solve_linear_system(const int32_t n, const vector<i
     // 模 3 意义下的线性方程组的系数矩阵
     vector<sparse_matrix_pairs> a;
     a.reserve(n);
-    vector<cell_t> y(n, 0);
     assert(n1 * n2 == m.size());
     assert(n1 * n2 == im.size());
 
@@ -169,7 +228,6 @@ static inline vector<cell_t> solve_linear_system(const int32_t n, const vector<i
             const int ci = im[i * n1 + j];
             assert(ci < n);
             if (ci >= 0) {
-                y[ci] = 3 - m[i * n1 + j];
                 vector<sparse_matrix_pair> pairs;
                 for (const auto& direction : nl) {
                     const int i_ = i + direction[0];
@@ -182,36 +240,42 @@ static inline vector<cell_t> solve_linear_system(const int32_t n, const vector<i
                         }
                     }
                 }
-                a.push_back(sparse_matrix_pairs(std::move(pairs)));
+                a.push_back(sparse_matrix_pairs(std::move(pairs), 3 - m[i * n1 + j]));
             }
         }
     }
 
     sort(a.begin(), a.end());
 
-#ifndef NDEBUG
-    show_matrix(a, y);
+#ifdef _DEBUG
+    show_matrix(a);
 #endif
 
     for (int32_t i = 0; i < n; ++i) {
         // 将第 i 个方程中第 i 个未知数的系数变为 1
-        a[i].normalize(y[i]);
+        a[i].normalize();
 
         // 将第 j 个方程中第 i 个未知数的系数变为 0
-        #pragma omp parallel for schedule(static)
+        // #pragma omp parallel for schedule(static)
         for (int32_t j = 0; j < n; ++j) {
             if (j != i) {
-                a[j].eliminate(y[i], a[i], y[j]);
+                a[i].eliminate(a[j]);
             }
         }
 
-#ifndef NDEBUG
+        sort(a.begin(), a.end());
+
+#ifdef _DEBUG
         cout << "第" << i << "次消元" << endl;
-        show_matrix(a, y);
+        show_matrix(a);
 #endif
     }
 
     // 返回解
+    vector<cell_t> y(n);
+    for (int32_t i = 0; i < n; ++i) {
+        y[i] = a[i].get_y();
+    }
     return y;
 }
 
@@ -242,7 +306,7 @@ static inline void solve(ifstream &infile) {
     vector<cell_t> x_t = solve_linear_system<n1, n2>(count, m, im);
     assert(x_t.size() == count);
 
-#ifndef NDEBUG
+#ifdef _DEBUG
     for (int i = 0; i < count; ++i) {
         cout << x_t[i] << ' ';
     }
@@ -256,7 +320,7 @@ static inline void solve(ifstream &infile) {
             int ci = im[i * n1 + j];
             if (ci >= 0) {
                 x[i * n1 + j] = x_t[ci];
-#ifndef NDEBUG
+#ifdef _DEBUG
                 cout << "x[" << i << "][" << j << "] = " << x[i * n1 + j] << endl;
 #endif
             }
