@@ -12,27 +12,42 @@ end
     # n = ceil(Int, length(data) / chunk_size)
     t = Threads.nthreads()
 
-    l = ReentrantLock()
+    # l = fill(ReentrantLock(), t)
 
-    chunk_indices::Vector{Int32} = Vector{Int32}()
+    chunk_indices::Vector{Vector{Int32}} = Vector{Vector{Int32}}()
+    for _ in 1:t
+        push!(chunk_indices, Vector{Int32}())
+    end
+    # fill!(chunk_indices, copy(Vector{Int32}()))
     chunks = collect(enumerate(Iterators.partition(data, chunk_size)))
-    Threads.@threads :static for (i, chunk) in chunks
+    # println(chunks)
+    Threads.@threads for (i, chunk) in chunks
         # println(Threads.threadid(), " ", i)
         # chunk_indices[i] = topk_part(chunk, k, (i - 1) * chunk_size)
 
-        sorted = topk_part(chunk, k, (i - 1) * chunk_size)
-        
-        lock(l)
-        append!(chunk_indices, sorted)
-        partialsort!(chunk_indices, 1:k, by=x->data[x], rev=true)
-        resize!(chunk_indices, k)
-        unlock(l)
-    end
-    # all_indices = reduce(vcat, chunk_indices)
-    # println("Max = ", maximum(chunk_indices), " ", length(data))
-    # partialsort(all_indices, 1:k, rev=true, by=x->data[x])
+        j = Threads.threadid()
+        # @assert j <= t
 
-    return chunk_indices
+        sorted = topk_part(chunk, k, (i - 1) * chunk_size)
+        # println(Threads.threadid(), " ", i, " ", chunk_size, " ", sorted)
+
+        # lock(l[j])
+        append!(chunk_indices[j], sorted)
+        partialsort!(chunk_indices[j], 1:k, by=x->data[x], rev=true)
+        resize!(chunk_indices[j], k)
+        # unlock(l[j])
+
+    end
+
+    # Threads.@threads for chunk_index in chunk_indices
+    #     partialsort!(chunk_index, 1:k, by=x->data[x], rev=true)
+    #     resize!(chunk_index, k)
+    # end
+    all_indices = reduce(vcat, chunk_indices)
+    # println(length(all_indices))
+    partialsort(all_indices, 1:k, rev=true, by=x->data[x])
+
+    # return chunk_indices
 
     # partialsortperm(data, 1:k, rev=true)
 end

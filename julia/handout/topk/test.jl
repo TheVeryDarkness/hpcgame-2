@@ -3,21 +3,44 @@ Random.seed!(42)
 
 include("impl.jl")
 
+# 16
+i64_16 = rand(Int64, 1 << 4)
+f64_16 = randn(Float64, 1 << 4)
+
+println("Testing on 16 data...")
+res, time_i64_16 = @timed topk(i64_16, 1 << 2)
+ref, time_i64_16_base = @timed partialsortperm(i64_16, 1:1 << 2, rev=true)
+@assert length(res) == length(ref)
+println(res, ref)
+@assert all(res .== ref) "Failed for Int64 16"
+
+res, time_f64_16 = @timed topk(f64_16, 1 << 2)
+ref, time_f64_16_base = @timed partialsortperm(f64_16, 1:1 << 2, rev=true)
+@assert length(res) == length(ref)
+println(res, ref)
+@assert all(res .== ref) "Failed for Float64 16"
+
+println("Base: ", [time_i64_16_base, time_f64_16_base])
+println("Impl: ", [time_i64_16, time_f64_16])
+println("Speedup: ", [time_i64_16_base / time_i64_16, time_f64_16_base / time_f64_16])
+
 # Warmup
 topk(rand(Int64, 1 << 20), 1 << 8)
 topk(randn(Float64, 1 << 20), 1 << 8)
 
+# 1M
 i64_1m = rand(Int64, 1 << 20)
 f64_1m = randn(Float64, 1 << 20)
 
-# 1M
 println("Testing on 1M data...")
 res, time_i64_1m = @timed topk(i64_1m, 1 << 8)
 ref, time_i64_1m_base = @timed partialsortperm(i64_1m, 1:1 << 8, rev=true)
+@assert length(res) == length(ref)
 @assert all(res .== ref) "Failed for Int64 1M"
 
 res, time_f64_1m = @timed topk(f64_1m, 1 << 8)
 ref, time_f64_1m_base = @timed partialsortperm(f64_1m, 1:1 << 8, rev=true)
+@assert length(res) == length(ref)
 @assert all(res .== ref) "Failed for Float64 1M"
 
 println("Base: ", [time_i64_1m_base, time_f64_1m_base])
@@ -32,10 +55,12 @@ f64_16m = randn(Float64, 1 << 24)
 println("Testing on 16M data...")
 res, time_i64_16m = @timed topk(i64_16m, 1 << 8)
 ref, time_i64_16m_base = @timed partialsortperm(i64_16m, 1:1 << 8, rev=true)
+@assert length(res) == length(ref)
 @assert all(res .== ref) "Failed for Int64 16m"
 
 res, time_f64_16m = @timed topk(f64_16m, 1 << 8)
 ref, time_f64_16m_base = @timed partialsortperm(f64_16m, 1:1 << 8, rev=true)
+@assert length(res) == length(ref)
 @assert all(res .== ref) "Failed for Float64 16m"
 
 println("Base: ", [time_i64_16m_base, time_f64_16m_base])
@@ -50,10 +75,12 @@ f64_64m = randn(Float64, 1 << 26)
 println("Testing on 64M data...")
 res, time_i64_64m = @timed topk(i64_64m, 1 << 8)
 ref, time_i64_64m_base = @timed partialsortperm(i64_64m, 1:1 << 8, rev=true)
+@assert length(res) == length(ref)
 @assert all(res .== ref) "Failed for Int64 64m"
 
 res, time_f64_64m = @timed topk(f64_64m, 1 << 8)
 ref, time_f64_64m_base = @timed partialsortperm(f64_64m, 1:1 << 8, rev=true)
+@assert length(res) == length(ref)
 @assert all(res .== ref) "Failed for Float64 64m"
 
 println("Base: ", [time_i64_64m_base, time_f64_64m_base])
@@ -67,10 +94,12 @@ println("Speedup: ", [time_i64_64m_base / time_i64_64m, time_f64_64m_base / time
 # println("Testing on 1B data...")
 # res, time_i64_1b = @timed topk(i64_1b, 1 << 10)
 # ref, time_i64_1b_base = @timed partialsortperm(i64_1b, 1:1 << 10, rev=true)
+# @assert length(res) == length(ref)
 # @assert all(res .== ref) "Failed for Int64 1B"
 
 # res, time_f64_1b = @timed topk(f64_1b, 1 << 10)
 # ref, time_f64_1b_base = @timed partialsortperm(f64_1b, 1:1 << 10, rev=true)
+# @assert length(res) == length(ref)
 # @assert all(res .== ref) "Failed for Float64 1B"
 
 # println("Base: ", [time_i64_1b_base, time_f64_1b_base])
