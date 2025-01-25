@@ -152,10 +152,14 @@ int main(int argc, char **argv) {
                         if (need_lock) {
                             mtx.lock();
                         }
-                        if (x == 0 || x == block_size - 1) {
+                        // 检查是否在右边界（本子区域在左）或左边界（本子区域在右）
+                        const bool at_x_boundary = rank % 2 == 0 ? x == block_size - 1 : x == 0;
+                        if (at_x_boundary) {
                             send_data[0].push_back(y);
                         }
-                        if (y == 0 || y == block_size - 1) {
+                        // 检查是否在下边界（本子区域在上）或上边界（本子区域在下）
+                        const bool at_y_boundary = rank / 2 == 0 ? y == block_size - 1 : y == 0;
+                        if (at_y_boundary) {
                             send_data[1].push_back(x);
                         }
                         if (x > 0 && new_forest[(x - 1) * block_size + y] == TREE) {
