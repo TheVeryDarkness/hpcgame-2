@@ -2,7 +2,9 @@
 mutable struct Atomic{T}; @atomic x::T; end
 
 @inbounds function topk_part(data::AbstractVector{T}, k::Int64, start::Int64) where T
-    partialsortperm(data, 1:k, rev=true) .+ start
+    map(partialsortperm(data, 1:k, rev=true)) do x
+        (data[x], x + start)
+    end
 end
 
 @inbounds function topk(data::AbstractVector{T}, k) where T
@@ -14,11 +16,10 @@ end
 
     # l = fill(ReentrantLock(), t)
 
-    chunk_indices::Vector{Vector{Int32}} = Vector{Vector{Int32}}()
+    chunk_indices::Vector{Vector{Tuple{T, Int32}}} = Vector{Tuple{T, Int32}}()
     for _ in 1:t
-        push!(chunk_indices, Vector{Int32}())
+        push!(chunk_indices, Vector{Tuple{T, Int32}}())
     end
-    # fill!(chunk_indices, copy(Vector{Int32}()))
     chunks = collect(enumerate(Iterators.partition(data, chunk_size)))
     # println(chunks)
     Threads.@threads for (i, chunk) in chunks
@@ -33,34 +34,23 @@ end
 
         # lock(l[j])
         append!(chunk_indices[j], sorted)
-        partialsort!(chunk_indices[j], 1:k, by=x->data[x], rev=true)
+        partialsort!(chunk_indices[j], 1:k, by=x->x[1], rev=true)
         resize!(chunk_indices[j], k)
         # unlock(l[j])
 
     end
 
     # Threads.@threads for chunk_index in chunk_indices
-    #     partialsort!(chunk_index, 1:k, by=x->data[x], rev=true)
+    #     partialsort!(chunk_index, 1:k, by=x->x[1], rev=true)
     #     resize!(chunk_index, k)
     # end
     all_indices = reduce(vcat, chunk_indices)
     # println(length(all_indices))
-    partialsort(all_indices, 1:k, rev=true, by=x->data[x])
+    map(partialsort(all_indices, 1:k, rev=true, by=x->x[1])) do x
+        x[2]
+    end
 
     # return chunk_indices
 
     # partialsortperm(data, 1:k, rev=true)
 end
-
-
-# Threads.@threads for (i, chunk) = collect(enumerate(Iterators.partition([1, 2, 3], 2)))
-#     println(chunk)
-# end
-
-# Threads.@threads for (i, chunk) = enumerate(Iterators.partition([1, 2, 3], 2))
-#     println(chunk)
-# end
-
-# Threads.@threads for i = 1:10
-#     println(Threads.threadid())
-# end
