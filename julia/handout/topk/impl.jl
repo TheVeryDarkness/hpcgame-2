@@ -8,7 +8,7 @@ end
 @inbounds function topk(data::AbstractVector{T}, k) where T
     # n = Threads.nthreads()
     # chunk_size = length(data) ÷ n
-    chunk_size = 1 << 17
+    chunk_size = max(1 << 17, min(1 << 20, length(data) ÷ 256))
     n = ceil(Int, length(data) / chunk_size)
 
     chunk_indices::Vector{Vector{Int}} = fill(Vector{Int}(), n)
