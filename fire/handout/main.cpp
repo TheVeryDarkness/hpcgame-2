@@ -3,7 +3,6 @@
 #include <fstream>
 #include <mpi.h>
 #include <vector>
-// #include <omp.h>
 #include <mutex>
 
 const int TREE = 1;  // 树木
@@ -22,9 +21,6 @@ struct Event {
     int x1, y1;     // 事件的坐标或区域范围
     int x2, y2;     // 仅用于“妙手回春”事件
 };
-
-constexpr size_t threads = 16;
-constexpr size_t thread_dim = 4;
 
 int main(int argc, char **argv) {
     if (argc < 3) {
@@ -106,7 +102,7 @@ int main(int argc, char **argv) {
                 }
             } else if (event.type == 2) {
                 // 妙手回春
-                #pragma omp parallel for collapse(2) // 并行化，不会数据竞争
+                // #pragma omp parallel for collapse(2) // 并行化，不会数据竞争
                 for (int x = std::max(event.x1, x_start); x <= std::min(event.x2, x_end); x++) {
                     for (int y = std::max(event.y1, y_start); y <= std::min(event.y2, y_end); y++) {
                         auto &cell = new_forest[(x - x_start) * block_size + y - y_start];
@@ -134,57 +130,51 @@ int main(int argc, char **argv) {
         recv_data[0].resize(block_size, -1);
         recv_data[1].resize(block_size, -1);
 
-        // 当可能访问到边界时，需要加锁，以免多个线程同时访问同一个位置
-        // 共计 3 * 4 * 2 = 24 条边界。
-        std::mutex mtx;
+        // #pragma omp parallel for collapse(2) // 并行化，不会数据竞争
+        for (int x = 0; x <= block_size; x++) {
+            for (int y = 0; y <= block_size; y++) {
+                if (new_forest[x * block_size + y] == FIRE) {
+                    // 检查是否在右边界（本子区域在左）或左边界（本子区域在右）
+                    const bool at_x_boundary = rank % 2 == 0 ? x == block_size - 1 : x == 0;
+                    // 检查是否在下边界（本子区域在上）或上边界（本子区域在下）
+                    const bool at_y_boundary = rank / 2 == 0 ? y == block_size - 1 : y == 0;
 
-        const int thread_block_size = block_size / thread_dim;
-
-        #pragma omp parallel for
-        for (int thr = 0; thr < threads; ++thr){
-            const int x_start = (thr % thread_dim) * thread_block_size;
-            const int y_start = (thr / thread_dim) * thread_block_size;
-            const int x_end = x_start + thread_block_size - 1;
-            const int y_end = y_start + thread_block_size - 1;
-
-            for (int x = x_start; x <= x_end; x++) {
-                for (int y = y_start; y <= y_end; y++) {
-                    if (new_forest[x * block_size + y] == FIRE) {
-                        // 检查是否可能会访问到边界
-                        const bool may_burn_boundary = x == 0 || x == block_size - 1 || y == 0 || y == block_size - 1;
-                        // 检查是否在右边界（本子区域在左）或左边界（本子区域在右）
-                        const bool at_x_boundary = rank % 2 == 0 ? x == block_size - 1 : x == 0;
-                        // 检查是否在下边界（本子区域在上）或上边界（本子区域在下）
-                        const bool at_y_boundary = rank / 2 == 0 ? y == block_size - 1 : y == 0;
-
-                        if (at_x_boundary) {
-                            #pragma omp critical
-                            {
-                                send_data[0].push_back(y);
-                            }
-                        }
-                        if (at_y_boundary) {
-                            #pragma omp critical
-                            {
-                                send_data[1].push_back(x);
-                            }
-                        }
-                        if (may_burn_boundary) {
-                            mtx.lock();
-                        }
-                        if (x > 0 && new_forest[(x - 1) * block_size + y] == TREE) {
-                            new_new_forest[(x - 1) * block_size + y] = FIRE;
-                        }
-                        if (x < block_size - 1 && new_forest[(x + 1) * block_size + y] == TREE) {
-                            new_new_forest[(x + 1) * block_size + y] = FIRE;
-                        }
-                        if (y > 0 && new_forest[x * block_size + (y - 1)] == TREE) {
-                            new_new_forest[x * block_size + (y - 1)] = FIRE;
-                        }
-                        if (may_burn_boundary) {
-                            mtx.unlock();
+                    if (at_x_boundary) {
+                        // #pragma omp critical
+                        {
+                            send_data[0].push_back(y);
                         }
                     }
+                    if (at_y_boundary) {
+                        // #pragma omp critical
+                        {
+                            send_data[1].push_back(x);
+                        }
+                    }
+                    const int delta[4][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+                    for (int i = 0; i < 4; i++) {
+                        const int nx = x + delta[i][0];
+                        const int ny = y + delta[i][1];
+                        if (nx < 0 || nx >= block_size || ny < 0 || ny >= block_size) {
+                            continue;
+                        }
+                        const int offset = nx * block_size + ny;
+                        if (new_forest[offset] == TREE) {
+                            new_new_forest[offset] = FIRE;
+                        }
+                    }
+                    // if (x > 0 && new_forest[(x - 1) * block_size + y] == TREE) {
+                    //     new_new_forest[(x - 1) * block_size + y] = FIRE;
+                    // }
+                    // if (x < block_size - 1 && new_forest[(x + 1) * block_size + y] == TREE) {
+                    //     new_new_forest[(x + 1) * block_size + y] = FIRE;
+                    // }
+                    // if (y > 0 && new_forest[x * block_size + (y - 1)] == TREE) {
+                    //     new_new_forest[x * block_size + (y - 1)] = FIRE;
+                    // }
+                    // if (y < block_size - 1 && new_forest[x * block_size + (y + 1)] == TREE) {
+                    //     new_new_forest[x * block_size + (y + 1)] = FIRE;
+                    // }
                 }
             }
         }
