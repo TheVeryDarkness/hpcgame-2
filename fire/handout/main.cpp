@@ -60,11 +60,11 @@ int main(int argc, char **argv) {
     const int y_end = y_start + block_size - 1;
 
     // 初始化森林
-    std::vector<std::vector<int>> forest(block_size, std::vector<int>(size, TREE));
+    std::vector<int> forest(block_size * block_size, TREE);
     for (int i = 0; i < size; i++) {
         for (int j = 0; j < size; j++) {
             if (x_start <= i && i <= x_end && y_start <= j && j <= y_end) {
-                fin >> forest[i - x_start][j - y_start];
+                fin >> forest[(i - x_start) * block_size + j - y_start];
             } else {
                 int temp;
                 fin >> temp;
@@ -89,9 +89,7 @@ int main(int argc, char **argv) {
     // 模拟火灾
     for (int t = 0; t < time_steps; t++) {
         // 处理事件后的森林
-        std::vector<std::vector<int>> new_forest = forest;
-        // 扩散火焰后的森林
-        std::vector<std::vector<int>> new_new_forest = forest;
+        std::vector<int> new_forest = forest;
 
         // 处理事件
         if (event_id < event_count && events[event_id].ts == t) {
@@ -99,14 +97,14 @@ int main(int argc, char **argv) {
             if (event.type == 1) {
                 // 天降惊雷
                 if (x_start <= event.x1 && event.x1 <= x_end && y_start <= event.y1 && event.y1 <= y_end) {
-                    new_forest[event.x1 - x_start][event.y1 - y_start] = FIRE;
+                    new_forest[(event.x1 - x_start) * block_size + event.y1 - y_start] = FIRE;
                 }
             } else if (event.type == 2) {
                 // 妙手回春
-                #pragma omp parallel for collapse(2)
+                #pragma omp parallel for collapse(2) // 并行化，不会数据竞争
                 for (int x = std::max(event.x1, x_start); x <= std::min(event.x2, x_end); x++) {
                     for (int y = std::max(event.y1, y_start); y <= std::min(event.y2, y_end); y++) {
-                        auto &cell = new_forest[x - x_start][y - y_start];
+                        auto &cell = new_forest[(x - x_start) * block_size + y - y_start];
                         if (cell == ASH) {
                             cell = TREE;
                         }
@@ -117,18 +115,21 @@ int main(int argc, char **argv) {
             event_id++;
         }
 
+        // 扩散火焰后的森林
+        std::vector<int> new_new_forest = forest;
+
         // 扩散火焰
         // 由于我们使用了二维数组，因此我们需要考虑边界情况
         // 每个时间步，我们将当前区域的火焰扩散到周围的区域（即上下左右四个方向）
         // 如果当前区域的边界上有火焰，且未超出世界边界的话，我们将火焰扩散到对应的相邻区域
-        // 由于只有 4 个区域，因此最多只有 2 个方向需要扩散，分别是左右和上下
+        // 由于只有 4 个区域，因此最多只有 2 个方向需要扩散，分别是左右（x 轴方向）和上下（y 轴方向）
 
         std::vector<int> send_data[2];
         std::vector<int> recv_data[2];
         recv_data[0].resize(block_size, -1);
         recv_data[1].resize(block_size, -1);
 
-        // 当访问到边界时，需要加锁，以免多个线程同时访问同一个位置
+        // 当可能访问到边界时，需要加锁，以免多个线程同时访问同一个位置
         std::mutex mtx;
 
         const int thread_block_size = block_size / thread_dim;
@@ -142,8 +143,8 @@ int main(int argc, char **argv) {
 
             for (int x = x_start; x <= x_end; x++) {
                 for (int y = y_start; y <= y_end; y++) {
-                    if (new_forest[x][y] == FIRE) {
-                        const bool need_lock = (x == 0 || x == block_size - 1 || y == 0 || y == block_size - 1);
+                    if (new_forest[x * block_size + y] == FIRE) {
+                        const bool need_lock = (x <= 1 || x >= block_size - 2 || y <= 1 || y >= block_size - 2);
                         if (need_lock) {
                             mtx.lock();
                         }
@@ -153,17 +154,17 @@ int main(int argc, char **argv) {
                         if (y == 0 || y == block_size - 1) {
                             send_data[1].push_back(x);
                         }
-                        if (x > 0 && new_forest[x - 1][y] == TREE) {
-                            new_new_forest[x - 1][y] = FIRE;
+                        if (x > 0 && new_forest[(x - 1) * block_size + y] == TREE) {
+                            new_new_forest[(x - 1) * block_size + y] = FIRE;
                         }
-                        if (x < block_size - 1 && new_forest[x + 1][y] == TREE) {
-                            new_new_forest[x + 1][y] = FIRE;
+                        if (x < block_size - 1 && new_forest[(x + 1) * block_size + y] == TREE) {
+                            new_new_forest[(x + 1) * block_size + y] = FIRE;
                         }
-                        if (y > 0 && new_forest[x][y - 1] == TREE) {
-                            new_new_forest[x][y - 1] = FIRE;
+                        if (y > 0 && new_forest[x * block_size + (y - 1)] == TREE) {
+                            new_new_forest[x * block_size + (y - 1)] = FIRE;
                         }
-                        if (y < size - 1 && new_forest[x][y + 1] == TREE) {
-                            new_new_forest[x][y + 1] = FIRE;
+                        if (y < block_size - 1 && new_forest[x * block_size + (y + 1)] == TREE) {
+                            new_new_forest[x * block_size + (y + 1)] = FIRE;
                         }
                         if (need_lock) {
                             mtx.unlock();
@@ -178,17 +179,17 @@ int main(int argc, char **argv) {
             MPI_COMM_WORLD, MPI_STATUS_IGNORE
         );
         MPI_Sendrecv(
-            &send_data[1][0], send_data[1].size(), MPI_INT, (rank + 2) % 4, t,
-            &recv_data[1][0], recv_data[1].size(), MPI_INT, (rank + 2) % 4, t,
+            send_data[1].data(), send_data[1].size(), MPI_INT, (rank + 2) % 4, t,
+            recv_data[1].data(), recv_data[1].size(), MPI_INT, (rank + 2) % 4, t,
             MPI_COMM_WORLD, MPI_STATUS_IGNORE
         );
         for (int i = 0; i < recv_data[0].size(); i++) {
             const int x = (rank % 2 == 0) ? block_size - 1 : 0;
             const int y = recv_data[0][i];
-            if (y < 0 || y >= size) {
+            if (y < 0 || y >= block_size) {
                 break;
             }
-            auto &cell = new_new_forest[x][y];
+            auto &cell = new_new_forest[x * block_size + y];
             if (cell == TREE) {
                 cell = FIRE;
             }
@@ -199,7 +200,7 @@ int main(int argc, char **argv) {
             if (x < 0 || x >= block_size) {
                 break;
             }
-            auto &cell = new_new_forest[x][y];
+            auto &cell = new_new_forest[x * block_size + y];
             if (cell == TREE) {
                 cell = FIRE;
             }
@@ -215,7 +216,7 @@ int main(int argc, char **argv) {
         // 将自己的区域复制到结果中
         for (int i = 0; i < block_size; i++) {
             for (int j = 0; j < block_size; j++) {
-                result[i * size + j] = forest[i][j];
+                result[i * size + j] = forest[i * block_size + j];
             }
         }
         // 接收其他进程的区域
@@ -241,13 +242,7 @@ int main(int argc, char **argv) {
         }
         fout.close();
     } else {
-        std::vector<int> block(block_size * block_size);
-        for (int i = 0; i < block_size; i++) {
-            for (int j = 0; j < block_size; j++) {
-                block[i * block_size + j] = forest[i][j];
-            }
-        }
-        MPI_Send(block.data(), block_size * block_size, MPI_INT, 0, time_steps, MPI_COMM_WORLD);
+        MPI_Send(forest.data(), block_size * block_size, MPI_INT, 0, time_steps, MPI_COMM_WORLD);
     }
 
     MPI_Finalize();
