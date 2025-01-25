@@ -97,7 +97,11 @@ int main(int argc, char **argv) {
             if (event.type == 1) {
                 // 天降惊雷
                 if (x_start <= event.x1 && event.x1 <= x_end && y_start <= event.y1 && event.y1 <= y_end) {
-                    new_forest[(event.x1 - x_start) * block_size + event.y1 - y_start] = FIRE;
+                    auto &cell = new_forest[(event.x1 - x_start) * block_size + event.y1 - y_start];
+                    if (cell == TREE) {
+                        cell = FIRE;
+                    }
+                    // new_forest[(event.x1 - x_start) * block_size + event.y1 - y_start] = FIRE;
                 }
             } else if (event.type == 2) {
                 // 妙手回春
