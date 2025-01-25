@@ -117,6 +117,8 @@ int main(int argc, char **argv) {
 
         std::vector<int> send_data[2];
         std::vector<int> recv_data[2];
+        recv_data[0].resize(block_size, -1);
+        recv_data[1].resize(block_size, -1);
         for (int x = 0; x < block_size; x++) {
             for (int y = 0; y < size; y++) {
                 if (new_forest[x][y] == FIRE) {
@@ -153,14 +155,22 @@ int main(int argc, char **argv) {
         );
         for (int i = 0; i < recv_data[0].size(); i++) {
             const int x = (rank % 2 == 0) ? block_size - 1 : 0;
-            auto &cell = new_forest[x][recv_data[0][i]];
+            const int y = recv_data[0][i];
+            if (y < 0 || y >= size) {
+                break;
+            }
+            auto &cell = new_forest[x][y];
             if (cell == TREE) {
                 cell = FIRE;
             }
         }
         for (int i = 0; i < recv_data[1].size(); i++) {
             const int y = (rank / 2 == 0) ? block_size - 1 : 0;
-            auto &cell = new_forest[recv_data[1][i]][y];
+            const int x = recv_data[1][i];
+            if (x < 0 || x >= block_size) {
+                break;
+            }
+            auto &cell = new_forest[x][y];
             if (cell == TREE) {
                 cell = FIRE;
             }
