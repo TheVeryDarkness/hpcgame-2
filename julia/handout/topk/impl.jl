@@ -6,12 +6,14 @@ mutable struct Atomic{T}; @atomic x::T; end
 end
 
 @inbounds function topk(data::AbstractVector{T}, k) where T
-    n = Threads.nthreads()
-    chunk_size = length(data) ÷ n
+    # n = Threads.nthreads()
+    # chunk_size = length(data) ÷ n
+    chunk_size = 1 << 17
+    n = ceil(Int, length(data) / chunk_size)
+
     chunk_indices::Vector{Vector{Int}} = fill(Vector{Int}(), n)
-    # chunk_size = 1 << 17
     Threads.@threads for (i, chunk) in collect(enumerate(Iterators.partition(data, chunk_size)))
-        chunk_indices[Threads.threadid()] = topk_part(chunk, k, (i - 1) * chunk_size)
+        chunk_indices[i] = topk_part(chunk, k, (i - 1) * chunk_size)
     end
     all_indices = reduce(vcat, chunk_indices)
     # println("Max = ", maximum(chunk_indices), " ", length(data))
