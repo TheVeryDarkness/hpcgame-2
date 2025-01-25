@@ -23,6 +23,7 @@
         }                                               \
     } while (0)
 
+typedef float f_t;
 typedef double d_t;
 // // https://blog.csdn.net/bruce_0712/article/details/65444997
 // struct __align__(16) d3_t {
@@ -49,7 +50,7 @@ static inline __device__ d_t sub_norm(d_t x, d_t y, d_t z, d3_t base) {
 }
 
 template<int64_t mirn, int64_t senn>
-__global__ void kernel(const d3_t src, const d_t* mir_x, const d_t* mir_y, const d_t* mir_z, const d3_t* sen, d_t* data) {
+__global__ void kernel(const d3_t src, const f_t* mir_x, const f_t* mir_y, const f_t* mir_z, const d3_t* sen, d_t* data) {
 
     static_assert(mirn == 1048576);
     static_assert(senn == 1048576);
@@ -133,10 +134,10 @@ int main(){
     // d3_t* mir;
     // CHECK_CUDA(cudaMallocHost(&mir, mirn * sizeof(d3_t)));
 
-    d_t* mir_x, * mir_y, * mir_z;
-    CHECK_CUDA(cudaMallocHost(&mir_x, mirn * sizeof(d_t)));
-    CHECK_CUDA(cudaMallocHost(&mir_y, mirn * sizeof(d_t)));
-    CHECK_CUDA(cudaMallocHost(&mir_z, mirn * sizeof(d_t)));
+    f_t* mir_x, * mir_y, * mir_z;
+    CHECK_CUDA(cudaMallocHost(&mir_x, mirn * sizeof(f_t)));
+    CHECK_CUDA(cudaMallocHost(&mir_y, mirn * sizeof(f_t)));
+    CHECK_CUDA(cudaMallocHost(&mir_z, mirn * sizeof(f_t)));
 
     for (int i = 0; i < mirn; i++) {
         double mir[3];
@@ -162,7 +163,7 @@ int main(){
     fclose(fi);
 
     // d3_t* d_mir;
-    d_t* d_mir_x, *d_mir_y, *d_mir_z;
+    f_t* d_mir_x, *d_mir_y, *d_mir_z;
     d3_t * d_sen;
     d_t* d_data;
 
@@ -170,14 +171,14 @@ int main(){
     // CHECK_CUDA(cudaMalloc(&d_mir, mirn * sizeof(d3_t)));
     CHECK_CUDA(cudaMalloc(&d_sen, senn * sizeof(d3_t)));
 
-    CHECK_CUDA(cudaMalloc(&d_mir_x, mirn * sizeof(d_t)));
-    CHECK_CUDA(cudaMalloc(&d_mir_y, mirn * sizeof(d_t)));
-    CHECK_CUDA(cudaMalloc(&d_mir_z, mirn * sizeof(d_t)));
+    CHECK_CUDA(cudaMalloc(&d_mir_x, mirn * sizeof(f_t)));
+    CHECK_CUDA(cudaMalloc(&d_mir_y, mirn * sizeof(f_t)));
+    CHECK_CUDA(cudaMalloc(&d_mir_z, mirn * sizeof(f_t)));
 
     // CHECK_CUDA(cudaMemcpy(d_mir, mir, mirn * sizeof(d3_t), cudaMemcpyHostToDevice));
-    CHECK_CUDA(cudaMemcpy(d_mir_x, mir_x, mirn * sizeof(d_t), cudaMemcpyHostToDevice));
-    CHECK_CUDA(cudaMemcpy(d_mir_y, mir_y, mirn * sizeof(d_t), cudaMemcpyHostToDevice));
-    CHECK_CUDA(cudaMemcpy(d_mir_z, mir_z, mirn * sizeof(d_t), cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(d_mir_x, mir_x, mirn * sizeof(f_t), cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(d_mir_y, mir_y, mirn * sizeof(f_t), cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(d_mir_z, mir_z, mirn * sizeof(f_t), cudaMemcpyHostToDevice));
 
     CHECK_CUDA(cudaMemcpy(d_sen, sen, senn * sizeof(d3_t), cudaMemcpyHostToDevice));
 
