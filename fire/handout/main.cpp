@@ -3,6 +3,7 @@
 #include <fstream>
 #include <mpi.h>
 #include <vector>
+#include <mutex>
 
 const int TREE = 1;  // 树木
 const int FIRE = 2;  // 火焰
@@ -20,6 +21,9 @@ struct Event {
     int x1, y1;     // 事件的坐标或区域范围
     int x2, y2;     // 仅用于“妙手回春”事件
 };
+
+constexpr size_t threads = 16;
+constexpr size_t thread_dim = 4;
 
 int main(int argc, char **argv) {
     if (argc < 3) {
@@ -82,10 +86,13 @@ int main(int argc, char **argv) {
     // 将要处理的事件编号
     int event_id = 0;
 
-    std::vector<std::vector<int>> new_forest(block_size, std::vector<int>(size, TREE));
-
     // 模拟火灾
     for (int t = 0; t < time_steps; t++) {
+        // 处理事件后的森林
+        std::vector<std::vector<int>> new_forest = forest;
+        // 扩散火焰后的森林
+        std::vector<std::vector<int>> new_new_forest = forest;
+
         // 处理事件
         if (event_id < event_count && events[event_id].ts == t) {
             const Event &event = events[event_id];
@@ -96,6 +103,7 @@ int main(int argc, char **argv) {
                 }
             } else if (event.type == 2) {
                 // 妙手回春
+                #pragma omp parallel for collapse(2)
                 for (int x = std::max(event.x1, x_start); x <= std::min(event.x2, x_end); x++) {
                     for (int y = std::max(event.y1, y_start); y <= std::min(event.y2, y_end); y++) {
                         auto &cell = new_forest[x - x_start][y - y_start];
@@ -119,26 +127,47 @@ int main(int argc, char **argv) {
         std::vector<int> recv_data[2];
         recv_data[0].resize(block_size, -1);
         recv_data[1].resize(block_size, -1);
-        for (int x = 0; x < block_size; x++) {
-            for (int y = 0; y < block_size; y++) {
-                if (new_forest[x][y] == FIRE) {
-                    if (x == 0 || x == block_size - 1) {
-                        send_data[0].push_back(y);
-                    }
-                    if (y == 0 || y == block_size - 1) {
-                        send_data[1].push_back(x);
-                    }
-                    if (x > 0 && new_forest[x - 1][y] == TREE) {
-                        new_forest[x - 1][y] = FIRE;
-                    }
-                    if (x < block_size - 1 && new_forest[x + 1][y] == TREE) {
-                        new_forest[x + 1][y] = FIRE;
-                    }
-                    if (y > 0 && new_forest[x][y - 1] == TREE) {
-                        new_forest[x][y - 1] = FIRE;
-                    }
-                    if (y < size - 1 && new_forest[x][y + 1] == TREE) {
-                        new_forest[x][y + 1] = FIRE;
+
+        // 当访问到边界时，需要加锁，以免多个线程同时访问同一个位置
+        std::mutex mtx;
+
+        const int thread_block_size = block_size / thread_dim;
+
+        #pragma omp parallel for
+        for (int t = 0; t < threads; ++t){
+            const int x_start = (t % thread_dim) * thread_block_size;
+            const int y_start = (t / thread_dim) * thread_block_size;
+            const int x_end = x_start + thread_block_size - 1;
+            const int y_end = y_start + thread_block_size - 1;
+
+            for (int x = x_start; x <= x_end; x++) {
+                for (int y = y_start; y <= y_end; y++) {
+                    if (new_forest[x][y] == FIRE) {
+                        const bool need_lock = (x == 0 || x == block_size - 1 || y == 0 || y == block_size - 1);
+                        if (need_lock) {
+                            mtx.lock();
+                        }
+                        if (x == 0 || x == block_size - 1) {
+                            send_data[0].push_back(y);
+                        }
+                        if (y == 0 || y == block_size - 1) {
+                            send_data[1].push_back(x);
+                        }
+                        if (x > 0 && new_forest[x - 1][y] == TREE) {
+                            new_new_forest[x - 1][y] = FIRE;
+                        }
+                        if (x < block_size - 1 && new_forest[x + 1][y] == TREE) {
+                            new_new_forest[x + 1][y] = FIRE;
+                        }
+                        if (y > 0 && new_forest[x][y - 1] == TREE) {
+                            new_new_forest[x][y - 1] = FIRE;
+                        }
+                        if (y < size - 1 && new_forest[x][y + 1] == TREE) {
+                            new_new_forest[x][y + 1] = FIRE;
+                        }
+                        if (need_lock) {
+                            mtx.unlock();
+                        }
                     }
                 }
             }
@@ -159,7 +188,7 @@ int main(int argc, char **argv) {
             if (y < 0 || y >= size) {
                 break;
             }
-            auto &cell = new_forest[x][y];
+            auto &cell = new_new_forest[x][y];
             if (cell == TREE) {
                 cell = FIRE;
             }
@@ -170,14 +199,14 @@ int main(int argc, char **argv) {
             if (x < 0 || x >= block_size) {
                 break;
             }
-            auto &cell = new_forest[x][y];
+            auto &cell = new_new_forest[x][y];
             if (cell == TREE) {
                 cell = FIRE;
             }
         }
 
         // forest = new_forest;
-        std::swap(forest, new_forest);
+        std::swap(forest, new_new_forest);
     }
 
     // 收集结果
