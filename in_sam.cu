@@ -24,7 +24,8 @@
     } while (0)
 
 typedef double d_t;
-struct d3_t {
+// https://blog.csdn.net/bruce_0712/article/details/65444997
+struct __align__(16) d3_t {
     d_t x, y, z;
 };
 
@@ -36,35 +37,61 @@ __device__ d3_t operator-(d3_t a, d3_t b) {
     return {a.x-b.x,a.y-b.y,a.z-b.z};
 }
 
-/**
- * @brief 
- * 
- * @param src 
- * @param mir 
- * @param sen 
- * @param data 
- * @param mirn 
- * @param senn 
- */
 template<int64_t mirn, int64_t senn>
 __global__ void kernel(const d3_t src, const d3_t* mir, const d3_t* sen, d_t* data) {
 
     static_assert(mirn == 1048576);
     static_assert(senn == 1048576);
     int64_t i = blockIdx.x * blockDim.x + threadIdx.x;
+    const d3_t sen_i = sen[i];
 
     {
         d_t a=0;
         d_t b=0;
         #pragma unroll
         for (int64_t j = 0; j < mirn; j++) {
-            d_t l = norm(mir[j] - src) + norm(mir[j] - sen[i]);
+            d_t l = norm(mir[j] - src) + norm(mir[j] - sen_i);
             a += cos(6.283185307179586 * 2000 * l);
             b += sin(6.283185307179586 * 2000 * l);
         }
         data[i] = sqrt(a * a + b * b);
     }
 }
+
+// // 每个线程块共享内存的大小
+// constexpr static inline int64_t SHARED_MEM_SIZE = 1024;
+
+// template<int64_t mirn, int64_t senn>
+// __global__ void kernel(const d3_t src, const d3_t* mir, const d3_t* sen, d_t* data) {
+//     __shared__ d3_t shared_mir[SHARED_MEM_SIZE]; // 使用共享内存缓存 mir 数据
+
+//     static_assert(mirn == 1048576);
+//     static_assert(senn == 1048576);
+//     static_assert(mirn % SHARED_MEM_SIZE == 0);
+//     int64_t i = blockIdx.x * blockDim.x + threadIdx.x;
+
+//     d_t a = 0;
+//     d_t b = 0;
+//     // 每次加载部分 mir 数据到共享内存
+//     for (int64_t tile = 0; tile < mirn; tile += SHARED_MEM_SIZE) {
+//         int64_t idx = tile + threadIdx.x;
+
+//         if (idx < mirn) {
+//             shared_mir[threadIdx.x] = mir[idx];
+//         }
+//         __syncthreads();
+
+//         #pragma unroll
+//         for (int64_t j = 0; j < SHARED_MEM_SIZE; j++) {
+//             const d_t l = norm(shared_mir[j] - src) + norm(shared_mir[j] - sen[i]);
+//             a += cos(6.283185307179586 * 2000 * l);
+//             b += sin(6.283185307179586 * 2000 * l);
+//         }
+//         __syncthreads();
+//     }
+//     // 计算最终结果
+//     data[i] = sqrt(a * a + b * b);
+// }
 
 int main(){
     // // These variables are used to convert occupancy to warps
@@ -76,22 +103,32 @@ int main(){
     
     FILE* fi;
     fi = fopen("in.data", "rb");
-    d3_t src;
+    double src[3];
     int64_t mirn,senn;
 
-    fread(&src, 1, sizeof(d3_t), fi);
-    
+    constexpr uint8_t d3_size = sizeof(double) * 3;
+
+    fread(src, 1, d3_size, fi);
+
+    const d3_t src_d3 = {src[0], src[1], src[2]};
+
     fread(&mirn, 1, sizeof(int64_t), fi);
     assert(mirn == 1048576);
     d3_t* mir;
     CHECK_CUDA(cudaMallocHost(&mir, mirn * sizeof(d3_t)));
-    fread(mir, 1, mirn * sizeof(d3_t), fi);
+    for (int i = 0; i < mirn; i++) {
+        fread(&mir[i], 1, d3_size, fi);
+    }
+    // fread(mir, 1, mirn * sizeof(d3_t), fi);
 
     fread(&senn, 1, sizeof(int64_t), fi);
     assert(senn == 1048576);
     d3_t* sen;
     CHECK_CUDA(cudaMallocHost(&sen, senn * sizeof(d3_t)));
-    fread(sen, 1, senn * sizeof(d3_t), fi);
+    for (int i = 0; i < senn; i++) {
+        fread(&sen[i], 1, d3_size, fi);
+    }
+    // fread(sen, 1, senn * sizeof(d3_t), fi);
 
     fclose(fi);
 
@@ -110,7 +147,7 @@ int main(){
     const int blockSize = 256;
     const int numBlocks = (senn + blockSize - 1) / blockSize;        // Occupancy in terms of active blocks
 
-    kernel<1048576, 1048576><<<numBlocks, blockSize>>>(src, d_mir, d_sen, d_data);
+    kernel<1048576, 1048576><<<numBlocks, blockSize>>>(src_d3, d_mir, d_sen, d_data);
 
     // CHECK_CUDA(cudaDeviceSynchronize());
 
