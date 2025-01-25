@@ -24,7 +24,7 @@
         }                                               \
     } while (0)
 
-typedef float f_t;
+typedef double f_t;
 typedef double d_t;
 // // https://blog.csdn.net/bruce_0712/article/details/65444997
 // struct __align__(16) d3_t {
@@ -66,9 +66,10 @@ __global__ void kernel(const d3_t src, const f_t* mir_x, const f_t* mir_y, const
     int64_t i = blockIdx.x * blockDim.x + threadIdx.x;
     const f3_t sen_i = sen[i];
 
+    constexpr f_t coeff = 6.283185307179586 * 2000;
     {
-        f_t a=0;
-        f_t b=0;
+        d_t a=0;
+        d_t b=0;
         // #pragma unroll
         for (int64_t j = 0; j < mirn; j++) {
             const f_t mir_x_j = mir_x[j];
@@ -76,8 +77,8 @@ __global__ void kernel(const d3_t src, const f_t* mir_x, const f_t* mir_y, const
             const f_t mir_z_j = mir_z[j];
             // d_t l = norm(mir[j] - src) + norm(mir[j] - sen_i);
             f_t l = sub_norm(mir_x_j, mir_y_j, mir_z_j, src) + sub_norm(mir_x_j, mir_y_j, mir_z_j, sen_i);
-            a += cos(6.283185307179586 * 2000 * l);
-            b += sin(6.283185307179586 * 2000 * l);
+            a += cos(coeff * l);
+            b += sin(coeff * l);
         }
         data[i] = sqrt(a * a + b * b);
     }
@@ -151,9 +152,9 @@ int main(){
     for (int i = 0; i < mirn; i++) {
         double mir[3];
         fread(mir, 1, d3_size, fi);
-        mir_x[i] = mir[0];
-        mir_y[i] = mir[1];
-        mir_z[i] = mir[2];
+        mir_x[i] = (f_t)mir[0];
+        mir_y[i] = (f_t)mir[1];
+        mir_z[i] = (f_t)mir[2];
     }
     // for (int i = 0; i < mirn; i++) {
     //     fread(&mir[i], 1, d3_size, fi);
