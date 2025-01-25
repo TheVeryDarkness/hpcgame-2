@@ -16,3 +16,11 @@ Profile.clear()
 
 # Export pprof profile and open interactive profiling web interface.
 pprof()
+
+# Collect an allocation profile
+Profile.Allocs.clear()
+Profile.Allocs.@profile topk(i64_256m, 1 << 10)
+Profile.Allocs.@profile topk(f64_256m, 1 << 10)
+
+# Export pprof allocation profile and open interactive profiling web interface.
+PProf.Allocs.pprof()
