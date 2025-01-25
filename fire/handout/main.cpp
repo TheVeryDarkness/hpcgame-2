@@ -120,7 +120,7 @@ int main(int argc, char **argv) {
         recv_data[0].resize(block_size, -1);
         recv_data[1].resize(block_size, -1);
         for (int x = 0; x < block_size; x++) {
-            for (int y = 0; y < size; y++) {
+            for (int y = 0; y < block_size; y++) {
                 if (new_forest[x][y] == FIRE) {
                     if (x == 0 || x == block_size - 1) {
                         send_data[0].push_back(y);
