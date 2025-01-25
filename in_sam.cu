@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <chrono>
 #include <iostream>
+#include <cuda_fp16.h>
 
 // https://zhuanlan.zhihu.com/p/663607169
 #define CHECK_CUDA(call)                                \
@@ -34,18 +35,26 @@ struct d3_t {
     d_t x, y, z;
 };
 
-__device__ d_t norm(d3_t x) {
-    return sqrt(x.x * x.x + x.y * x.y + x.z * x.z);
-}
+struct f3_t {
+    f_t x, y, z;
 
-__device__ d3_t operator-(d3_t a, d3_t b) {
-    return {a.x-b.x,a.y-b.y,a.z-b.z};
-}
+    __device__ f3_t(d3_t d) : x(d.x), y(d.y), z(d.z) {}
+    __device__ f3_t(f_t x, f_t y, f_t z) : x(x), y(y), z(z) {}
+    f3_t() = default;
+};
 
-static inline __device__ d_t sub_norm(d_t x, d_t y, d_t z, d3_t base) {
-    const d_t dx = x - base.x;
-    const d_t dy = y - base.y;
-    const d_t dz = z - base.z;
+// __device__ d_t norm(d3_t x) {
+//     return sqrt(x.x * x.x + x.y * x.y + x.z * x.z);
+// }
+
+// __device__ d3_t operator-(d3_t a, d3_t b) {
+//     return {a.x-b.x,a.y-b.y,a.z-b.z};
+// }
+
+static inline __device__ f_t sub_norm(f_t x, f_t y, f_t z, f3_t base) {
+    const f_t dx = x - base.x;
+    const f_t dy = y - base.y;
+    const f_t dz = z - base.z;
     return sqrt(dx * dx + dy * dy + dz * dz);
 }
 
@@ -55,18 +64,18 @@ __global__ void kernel(const d3_t src, const f_t* mir_x, const f_t* mir_y, const
     static_assert(mirn == 1048576);
     static_assert(senn == 1048576);
     int64_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    const d3_t sen_i = sen[i];
+    const f3_t sen_i = sen[i];
 
     {
-        d_t a=0;
-        d_t b=0;
+        f_t a=0;
+        f_t b=0;
         // #pragma unroll
         for (int64_t j = 0; j < mirn; j++) {
-            const d_t mir_x_j = mir_x[j];
-            const d_t mir_y_j = mir_y[j];
-            const d_t mir_z_j = mir_z[j];
+            const f_t mir_x_j = mir_x[j];
+            const f_t mir_y_j = mir_y[j];
+            const f_t mir_z_j = mir_z[j];
             // d_t l = norm(mir[j] - src) + norm(mir[j] - sen_i);
-            d_t l = sub_norm(mir_x_j, mir_y_j, mir_z_j, src) + sub_norm(mir_x_j, mir_y_j, mir_z_j, sen_i);
+            f_t l = sub_norm(mir_x_j, mir_y_j, mir_z_j, src) + sub_norm(mir_x_j, mir_y_j, mir_z_j, sen_i);
             a += cos(6.283185307179586 * 2000 * l);
             b += sin(6.283185307179586 * 2000 * l);
         }
