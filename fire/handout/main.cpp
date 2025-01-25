@@ -134,31 +134,37 @@ int main(int argc, char **argv) {
         recv_data[1].resize(block_size, -1);
 
         // 当可能访问到边界时，需要加锁，以免多个线程同时访问同一个位置
-        std::mutex mtx;
+        // 共计 3 * 4 * 2 = 24 条边界。
+        std::mutex mtx[24];
 
         const int thread_block_size = block_size / thread_dim;
 
         #pragma omp parallel for
-        for (int t = 0; t < threads; ++t){
-            const int x_start = (t % thread_dim) * thread_block_size;
-            const int y_start = (t / thread_dim) * thread_block_size;
+        for (int thr = 0; thr < threads; ++thr){
+            const int x_start = (thr % thread_dim) * thread_block_size;
+            const int y_start = (thr / thread_dim) * thread_block_size;
             const int x_end = x_start + thread_block_size - 1;
             const int y_end = y_start + thread_block_size - 1;
 
             for (int x = x_start; x <= x_end; x++) {
                 for (int y = y_start; y <= y_end; y++) {
                     if (new_forest[x * block_size + y] == FIRE) {
-                        const bool need_lock = (x <= 1 || x >= block_size - 2 || y <= 1 || y >= block_size - 2);
-                        if (need_lock) {
-                            mtx.lock();
-                        }
                         // 检查是否在右边界（本子区域在左）或左边界（本子区域在右）
-                        const bool at_x_boundary = rank % 2 == 0 ? x == block_size - 1 : x == 0;
+                        const bool at_x_boundary = rank % 2 == 0 ? x >= block_size - 2 : x <= 1;
+                        // 检查是否在下边界（本子区域在上）或上边界（本子区域在下）
+                        const bool at_y_boundary = rank / 2 == 0 ? y >= block_size - 2 : y <= 1;
+
+                        const int lock_id_x = thr + x >= block_size - 2 ? 1 : 0;
+                        const int lock_id_y = thr + y >= block_size - 2 ? 1 : 0 + 12;
+                        if (at_x_boundary) {
+                            mtx[lock_id_x].lock();
+                        }
+                        if (at_y_boundary) {
+                            mtx[lock_id_y].lock();
+                        }
                         if (at_x_boundary) {
                             send_data[0].push_back(y);
                         }
-                        // 检查是否在下边界（本子区域在上）或上边界（本子区域在下）
-                        const bool at_y_boundary = rank / 2 == 0 ? y == block_size - 1 : y == 0;
                         if (at_y_boundary) {
                             send_data[1].push_back(x);
                         }
@@ -174,8 +180,11 @@ int main(int argc, char **argv) {
                         if (y < block_size - 1 && new_forest[x * block_size + (y + 1)] == TREE) {
                             new_new_forest[x * block_size + (y + 1)] = FIRE;
                         }
-                        if (need_lock) {
-                            mtx.unlock();
+                        if (at_x_boundary) {
+                            mtx[lock_id_x].unlock();
+                        }
+                        if (at_y_boundary) {
+                            mtx[lock_id_y].unlock();
                         }
                     }
                 }
