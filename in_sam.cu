@@ -24,8 +24,12 @@
     } while (0)
 
 typedef double d_t;
-// https://blog.csdn.net/bruce_0712/article/details/65444997
-struct __align__(16) d3_t {
+// // https://blog.csdn.net/bruce_0712/article/details/65444997
+// struct __align__(16) d3_t {
+//     d_t x, y, z;
+// };
+
+struct d3_t {
     d_t x, y, z;
 };
 
@@ -37,8 +41,15 @@ __device__ d3_t operator-(d3_t a, d3_t b) {
     return {a.x-b.x,a.y-b.y,a.z-b.z};
 }
 
+static inline __device__ d_t sub_norm(d_t x, d_t y, d_t z, d3_t base) {
+    const d_t dx = x - base.x;
+    const d_t dy = y - base.y;
+    const d_t dz = z - base.z;
+    return sqrt(dx * dx + dy * dy + dz * dz);
+}
+
 template<int64_t mirn, int64_t senn>
-__global__ void kernel(const d3_t src, const d3_t* mir, const d3_t* sen, d_t* data) {
+__global__ void kernel(const d3_t src, const d_t* mir_x, const d_t* mir_y, const d_t* mir_z, const d3_t* sen, d_t* data) {
 
     static_assert(mirn == 1048576);
     static_assert(senn == 1048576);
@@ -48,9 +59,13 @@ __global__ void kernel(const d3_t src, const d3_t* mir, const d3_t* sen, d_t* da
     {
         d_t a=0;
         d_t b=0;
-        #pragma unroll
+        // #pragma unroll
         for (int64_t j = 0; j < mirn; j++) {
-            d_t l = norm(mir[j] - src) + norm(mir[j] - sen_i);
+            const d_t mir_x_j = mir_x[j];
+            const d_t mir_y_j = mir_y[j];
+            const d_t mir_z_j = mir_z[j];
+            // d_t l = norm(mir[j] - src) + norm(mir[j] - sen_i);
+            d_t l = sub_norm(mir_x_j, mir_y_j, mir_z_j, src) + sub_norm(mir_x_j, mir_y_j, mir_z_j, sen_i);
             a += cos(6.283185307179586 * 2000 * l);
             b += sin(6.283185307179586 * 2000 * l);
         }
@@ -114,32 +129,56 @@ int main(){
 
     fread(&mirn, 1, sizeof(int64_t), fi);
     assert(mirn == 1048576);
-    d3_t* mir;
-    CHECK_CUDA(cudaMallocHost(&mir, mirn * sizeof(d3_t)));
+
+    // d3_t* mir;
+    // CHECK_CUDA(cudaMallocHost(&mir, mirn * sizeof(d3_t)));
+
+    d_t* mir_x, * mir_y, * mir_z;
+    CHECK_CUDA(cudaMallocHost(&mir_x, mirn * sizeof(d_t)));
+    CHECK_CUDA(cudaMallocHost(&mir_y, mirn * sizeof(d_t)));
+    CHECK_CUDA(cudaMallocHost(&mir_z, mirn * sizeof(d_t)));
+
     for (int i = 0; i < mirn; i++) {
-        fread(&mir[i], 1, d3_size, fi);
+        double mir[3];
+        fread(mir, 1, d3_size, fi);
+        mir_x[i] = mir[0];
+        mir_y[i] = mir[1];
+        mir_z[i] = mir[2];
     }
+    // for (int i = 0; i < mirn; i++) {
+    //     fread(&mir[i], 1, d3_size, fi);
+    // }
     // fread(mir, 1, mirn * sizeof(d3_t), fi);
 
     fread(&senn, 1, sizeof(int64_t), fi);
     assert(senn == 1048576);
     d3_t* sen;
     CHECK_CUDA(cudaMallocHost(&sen, senn * sizeof(d3_t)));
-    for (int i = 0; i < senn; i++) {
-        fread(&sen[i], 1, d3_size, fi);
-    }
-    // fread(sen, 1, senn * sizeof(d3_t), fi);
+    // for (int i = 0; i < senn; i++) {
+    //     fread(&sen[i], 1, d3_size, fi);
+    // }
+    fread(sen, 1, senn * sizeof(d3_t), fi);
 
     fclose(fi);
 
-    d3_t* d_mir, * d_sen;
+    // d3_t* d_mir;
+    d_t* d_mir_x, *d_mir_y, *d_mir_z;
+    d3_t * d_sen;
     d_t* d_data;
 
     CHECK_CUDA(cudaMalloc(&d_data, senn * sizeof(d_t)));
-    CHECK_CUDA(cudaMalloc(&d_mir, mirn * sizeof(d3_t)));
+    // CHECK_CUDA(cudaMalloc(&d_mir, mirn * sizeof(d3_t)));
     CHECK_CUDA(cudaMalloc(&d_sen, senn * sizeof(d3_t)));
 
-    CHECK_CUDA(cudaMemcpy(d_mir, mir, mirn * sizeof(d3_t), cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMalloc(&d_mir_x, mirn * sizeof(d_t)));
+    CHECK_CUDA(cudaMalloc(&d_mir_y, mirn * sizeof(d_t)));
+    CHECK_CUDA(cudaMalloc(&d_mir_z, mirn * sizeof(d_t)));
+
+    // CHECK_CUDA(cudaMemcpy(d_mir, mir, mirn * sizeof(d3_t), cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(d_mir_x, mir_x, mirn * sizeof(d_t), cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(d_mir_y, mir_y, mirn * sizeof(d_t), cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(d_mir_z, mir_z, mirn * sizeof(d_t), cudaMemcpyHostToDevice));
+
     CHECK_CUDA(cudaMemcpy(d_sen, sen, senn * sizeof(d3_t), cudaMemcpyHostToDevice));
 
     // std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
@@ -147,7 +186,7 @@ int main(){
     const int blockSize = 256;
     const int numBlocks = (senn + blockSize - 1) / blockSize;        // Occupancy in terms of active blocks
 
-    kernel<1048576, 1048576><<<numBlocks, blockSize>>>(src_d3, d_mir, d_sen, d_data);
+    kernel<1048576, 1048576><<<numBlocks, blockSize>>>(src_d3, d_mir_x, d_mir_y, d_mir_z, d_sen, d_data);
 
     // CHECK_CUDA(cudaDeviceSynchronize());
 
