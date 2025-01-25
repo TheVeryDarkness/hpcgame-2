@@ -13,3 +13,6 @@ include("impl.jl")
 
 @report_opt topk(i64_16m, 1 << 8)
 @report_opt topk(f64_16m, 1 << 8)
+
+@report_call topk(i64_16m, 1 << 8)
+@report_call topk(f64_16m, 1 << 8)
