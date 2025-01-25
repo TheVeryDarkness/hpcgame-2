@@ -48,6 +48,9 @@ __device__ d3_t operator-(d3_t a, d3_t b) {
  */
 template<int64_t mirn, int64_t senn>
 __global__ void kernel(const d3_t src, const d3_t* mir, const d3_t* sen, d_t* data) {
+
+    static_assert(mirn == 1048576);
+    static_assert(senn == 1048576);
     int64_t i = blockIdx.x * blockDim.x + threadIdx.x;
 
     {
@@ -80,64 +83,59 @@ int main(){
     
     fread(&mirn, 1, sizeof(int64_t), fi);
     assert(mirn == 1048576);
-    d3_t* mir = (d3_t*)malloc(mirn * sizeof(d3_t));
+    d3_t* mir;
+    CHECK_CUDA(cudaMallocHost(&mir, mirn * sizeof(d3_t)));
     fread(mir, 1, mirn * sizeof(d3_t), fi);
 
     fread(&senn, 1, sizeof(int64_t), fi);
     assert(senn == 1048576);
-    d3_t* sen = (d3_t*)malloc(senn * sizeof(d3_t));
+    d3_t* sen;
+    CHECK_CUDA(cudaMallocHost(&sen, senn * sizeof(d3_t)));
     fread(sen, 1, senn * sizeof(d3_t), fi);
 
     fclose(fi);
 
-    d_t* data = (d_t*)malloc(senn * sizeof(d_t));
-
     d3_t* d_mir, * d_sen;
     d_t* d_data;
 
-    cudaMalloc(&d_mir, mirn * sizeof(d3_t));
-    cudaMalloc(&d_sen, senn * sizeof(d3_t));
-    cudaMalloc(&d_data, senn * sizeof(d_t));
+    CHECK_CUDA(cudaMalloc(&d_data, senn * sizeof(d_t)));
+    CHECK_CUDA(cudaMalloc(&d_mir, mirn * sizeof(d3_t)));
+    CHECK_CUDA(cudaMalloc(&d_sen, senn * sizeof(d3_t)));
 
-    cudaMemcpy(d_mir, mir, mirn * sizeof(d3_t), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_sen, sen, senn * sizeof(d3_t), cudaMemcpyHostToDevice);
+    CHECK_CUDA(cudaMemcpy(d_mir, mir, mirn * sizeof(d3_t), cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(d_sen, sen, senn * sizeof(d3_t), cudaMemcpyHostToDevice));
 
-    std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+    // std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
 
     const int blockSize = 256;
     const int numBlocks = (senn + blockSize - 1) / blockSize;        // Occupancy in terms of active blocks
 
     kernel<1048576, 1048576><<<numBlocks, blockSize>>>(src, d_mir, d_sen, d_data);
 
-    // cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-    //     &numBlocks,
-    //     kernel,
-    //     blockSize,
-    //     0
-    // );
+    // CHECK_CUDA(cudaDeviceSynchronize());
 
-    // const int activeWarps = numBlocks * blockSize / prop.warpSize;
-    // const int maxWarps = prop.maxThreadsPerMultiProcessor / prop.warpSize;
+    // std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+    // std::cout << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
+    //           << std::endl;
 
-    // std::cout << "Occupancy: " << (double)activeWarps / maxWarps * 100 << "%" << std::endl;
-    
-    CHECK_CUDA(cudaDeviceSynchronize());
+    d_t* data;
+    CHECK_CUDA(cudaMallocHost(&data, senn * sizeof(d_t)));
 
-    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-    std::cout << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
-              << std::endl;
-
-    cudaMemcpy(data, d_data, senn * sizeof(d_t), cudaMemcpyDeviceToHost);
-
-    cudaFree(d_mir);
-    cudaFree(d_sen);
-    cudaFree(d_data);
+    CHECK_CUDA(cudaMemcpy(data, d_data, senn * sizeof(d_t), cudaMemcpyDeviceToHost));
 
     CHECK_CUDA(cudaGetLastError());
+
+    // cudaFree(d_mir);
+    // cudaFree(d_sen);
+    // cudaFree(d_data);
 
     fi = fopen("out.data", "wb");
     fwrite(data, 1, senn * sizeof(d_t), fi);
     fclose(fi);
+
+    // cudaFreeHost(mir);
+    // cudaFreeHost(sen);
+    // cudaFreeHost(data);
 
     return 0;
 }
