@@ -5,13 +5,14 @@ set -eux
 krun init >/dev/null
 krun host -n -H > hostfile
 
-mpiicpx main.cpp -O3 -xHost -o forest
+mpiicpx main.cpp -Wall -O3 -xHost -o forest
+# mpiicpx main.cpp -Og -g -xHost -o forest
 
-scp /root/forest root@hpcgame-test-fire-workers-0-1:/root/forest
-scp /root/forest root@hpcgame-test-fire-workers-0-2:/root/forest
-scp /root/forest root@hpcgame-test-fire-workers-0-3:/root/forest
+scp /data/forest root@hpcgame-test-fire-workers-0-1:/data/forest
+scp /data/forest root@hpcgame-test-fire-workers-0-2:/data/forest
+scp /data/forest root@hpcgame-test-fire-workers-0-3:/data/forest
 
-mpirun --hostfile hostfile -np 4 -ppn 1 ./forest /problem/input.dat /data/output.dat
+mpirun --hostfile hostfile -np 4 /data/forest /data/input.txt /data/output.dat
 
 # export I_MPI_PIN=1
 # export I_MPI_PIN_DOMAIN=core  

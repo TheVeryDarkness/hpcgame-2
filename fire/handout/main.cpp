@@ -163,18 +163,6 @@ int main(int argc, char **argv) {
                             new_new_forest[offset] = FIRE;
                         }
                     }
-                    // if (x > 0 && new_forest[(x - 1) * block_size + y] == TREE) {
-                    //     new_new_forest[(x - 1) * block_size + y] = FIRE;
-                    // }
-                    // if (x < block_size - 1 && new_forest[(x + 1) * block_size + y] == TREE) {
-                    //     new_new_forest[(x + 1) * block_size + y] = FIRE;
-                    // }
-                    // if (y > 0 && new_forest[x * block_size + (y - 1)] == TREE) {
-                    //     new_new_forest[x * block_size + (y - 1)] = FIRE;
-                    // }
-                    // if (y < block_size - 1 && new_forest[x * block_size + (y + 1)] == TREE) {
-                    //     new_new_forest[x * block_size + (y + 1)] = FIRE;
-                    // }
                 }
             }
         }
