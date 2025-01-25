@@ -16,6 +16,12 @@ __device__ d3_t operator-(d3_t a, d3_t b) {
     return {a.x-b.x,a.y-b.y,a.z-b.z};
 }
 
+__device__ __host__ d3_t operator*(d3_t a, d_t b) {
+    return {a.x*b,a.y*b,a.z*b};
+}
+
+constexpr d_t coeff = 6.283185307179586 * 2000;
+
 /**
  * @brief 
  * 
@@ -26,15 +32,18 @@ __device__ d3_t operator-(d3_t a, d3_t b) {
  * @param mirn 
  * @param senn 
  */
-__global__ void kernel(d3_t src, d3_t* mir, d3_t* sen, d_t* data, int64_t mirn, int64_t senn) {
+template<int64_t mirn, int64_t senn>
+__global__ void kernel(d3_t src, d3_t mir[senn], d3_t sen[senn], d_t data[senn]) {
     int64_t i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < senn) {
-        d_t a=0;
-        d_t b=0;
+        const d3_t sen_i = sen[i] * coeff;
+        d_t a = 0;
+        d_t b = 0;
         for (int64_t j = 0; j < mirn; j++) {
-            d_t l = norm(mir[j] - src) + norm(mir[j] - sen[i]);
-            a += cos(6.283185307179586 * 2000 * l);
-            b += sin(6.283185307179586 * 2000 * l);
+            const d3_t mir_j = mir[j] * coeff;
+            d_t l = norm(mir_j - src) + norm(mir_j - sen_i);
+            a += cos(l);
+            b += sin(l);
         }
         data[i] = sqrt(a * a + b * b);
     }
@@ -44,7 +53,7 @@ int main(){
     FILE* fi;
     fi = fopen("in.data", "rb");
     d3_t src;
-    int64_t mirn,senn;
+    int64_t mirn,senn; // number of mirrors and sensors, both being 2^20
     d3_t* mir, * sen;
 
     fread(&src, 1, sizeof(d3_t), fi);
@@ -71,7 +80,11 @@ int main(){
     cudaMemcpy(d_mir, mir, mirn * sizeof(d3_t), cudaMemcpyHostToDevice);
     cudaMemcpy(d_sen, sen, senn * sizeof(d3_t), cudaMemcpyHostToDevice);
 
-    kernel<<<(senn + 255) / 256, 256>>>(src, d_mir, d_sen, d_data, mirn, senn);
+    const int blockSize = 256;
+    // assert(senn % blockSize == 0);
+    const int numBlocks = senn / blockSize; 
+
+    kernel<1048576, 1048576><<<numBlocks, blockSize>>>(src * coeff, d_mir, d_sen, d_data);
 
     cudaMemcpy(data, d_data, senn * sizeof(d_t), cudaMemcpyDeviceToHost);
 
