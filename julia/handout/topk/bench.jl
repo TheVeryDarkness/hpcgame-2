@@ -5,11 +5,17 @@ Random.seed!(42)
 
 include("impl.jl")
 
-i64_16m = rand(Int64, 1 << 24)
-f64_16m = randn(Float64, 1 << 24)
+i64_1m = rand(Int64, 1 << 20)
+f64_1m = randn(Float64, 1 << 20)
 
-@benchmark topk(i64_16m, 1 << 8)
-@benchmark topk(f64_16m, 1 << 8)
+@benchmark topk(i64_1m, 1 << 8)
+@benchmark topk(f64_1m, 1 << 8)
+
+i64_1b = rand(Int64, 1 << 30)
+f64_1b = randn(Float64, 1 << 30)
+
+@benchmark topk(i64_1b, 1 << 10)
+@benchmark topk(f64_1b, 1 << 10)
 
 # julia> @benchmark topk(i64_16m, 1 << 8)
 # BenchmarkTools.Trial: 250 samples with 1 evaluation per sample.

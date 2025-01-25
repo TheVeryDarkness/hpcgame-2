@@ -6,7 +6,6 @@
 #include <chrono>
 #include <iostream>
 
-// https://zhuanlan.zhihu.com/p/663607169
 #define CHECK_CUDA(call)                                \
     do                                                  \
     {                                                   \
@@ -33,51 +32,58 @@ __device__ d_t norm(d3_t x) {
 }
 
 __device__ d3_t operator-(d3_t a, d3_t b) {
-    return {a.x-b.x,a.y-b.y,a.z-b.z};
+    return {a.x - b.x, a.y - b.y, a.z - b.z};
 }
 
-/**
- * @brief 
- * 
- * @param src 
- * @param mir 
- * @param sen 
- * @param data 
- * @param mirn 
- * @param senn 
- */
-template<int64_t mirn, int64_t senn>
-__global__ void kernel(const d3_t src, const d3_t* mir, const d3_t* sen, d_t* data) {
+// 将 src 存储为常量内存以优化加载
+__constant__ d3_t d_src;
+
+// 每个线程块共享内存的大小
+#define SHARED_MEM_SIZE 1024
+
+template<int64_t mirn>
+__global__ void kernel(const d3_t* mir, const d3_t* sen, d_t* data, int64_t senn) {
+    __shared__ d3_t shared_mir[SHARED_MEM_SIZE]; // 使用共享内存缓存 mir 数据
+
     int64_t i = blockIdx.x * blockDim.x + threadIdx.x;
 
-    {
-        d_t a=0;
-        d_t b=0;
-        #pragma unroll
-        for (int64_t j = 0; j < mirn; j++) {
-            d_t l = norm(mir[j] - src) + norm(mir[j] - sen[i]);
-            a += cos(6.283185307179586 * 2000 * l);
-            b += sin(6.283185307179586 * 2000 * l);
+    // 检查线程是否越界
+    if (i >= senn) return;
+
+    d_t a = 0;
+    d_t b = 0;
+
+    // 每次加载部分 mir 数据到共享内存
+    for (int64_t tile = 0; tile < mirn; tile += SHARED_MEM_SIZE) {
+        int64_t idx = tile + threadIdx.x;
+
+        if (idx < mirn) {
+            shared_mir[threadIdx.x] = mir[idx];
         }
-        data[i] = sqrt(a * a + b * b);
+        __syncthreads();
+
+        // 遍历当前 tile 的共享内存数据
+        for (int64_t j = 0; j < SHARED_MEM_SIZE && (tile + j) < mirn; j++) {
+            d_t l = norm(shared_mir[j] - d_src) + norm(shared_mir[j] - sen[i]);
+            d_t angle = 12566.3706143592 * l; // 2π * 2000
+            a += cos(angle);
+            b += sin(angle);
+        }
+        __syncthreads();
     }
+
+    // 计算最终结果
+    data[i] = sqrt(a * a + b * b);
 }
 
-int main(){
-    // // These variables are used to convert occupancy to warps
-    // int device;
-    // cudaDeviceProp prop;
-
-    // cudaGetDevice(&device);
-    // cudaGetDeviceProperties(&prop, device);
-    
+int main() {
     FILE* fi;
     fi = fopen("in.data", "rb");
     d3_t src;
-    int64_t mirn,senn;
+    int64_t mirn, senn;
 
     fread(&src, 1, sizeof(d3_t), fi);
-    
+
     fread(&mirn, 1, sizeof(int64_t), fi);
     assert(mirn == 1048576);
     d3_t* mir = (d3_t*)malloc(mirn * sizeof(d3_t));
@@ -95,39 +101,33 @@ int main(){
     d3_t* d_mir, * d_sen;
     d_t* d_data;
 
-    cudaMalloc(&d_mir, mirn * sizeof(d3_t));
-    cudaMalloc(&d_sen, senn * sizeof(d3_t));
-    cudaMalloc(&d_data, senn * sizeof(d_t));
+    CHECK_CUDA(cudaMalloc(&d_mir, mirn * sizeof(d3_t)));
+    CHECK_CUDA(cudaMalloc(&d_sen, senn * sizeof(d3_t)));
+    CHECK_CUDA(cudaMalloc(&d_data, senn * sizeof(d_t)));
 
-    cudaMemcpy(d_mir, mir, mirn * sizeof(d3_t), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_sen, sen, senn * sizeof(d3_t), cudaMemcpyHostToDevice);
+    CHECK_CUDA(cudaMemcpy(d_mir, mir, mirn * sizeof(d3_t), cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(d_sen, sen, senn * sizeof(d3_t), cudaMemcpyHostToDevice));
+
+    // 将 src 加载到常量内存
+    CHECK_CUDA(cudaMemcpyToSymbol(d_src, &src, sizeof(d3_t)));
 
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
 
-    const int blockSize = 256;
-    const int numBlocks = (senn + blockSize - 1) / blockSize;        // Occupancy in terms of active blocks
+    int blockSize;
+    int minGridSize;
+    CHECK_CUDA(cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, kernel<1048576>, 0, 0));
 
-    kernel<1048576, 1048576><<<numBlocks, blockSize>>>(src, d_mir, d_sen, d_data);
+    int numBlocks = (senn + blockSize - 1) / blockSize;
 
-    // cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-    //     &numBlocks,
-    //     kernel,
-    //     blockSize,
-    //     0
-    // );
+    kernel<1048576><<<numBlocks, blockSize>>>(d_mir, d_sen, d_data, senn);
 
-    // const int activeWarps = numBlocks * blockSize / prop.warpSize;
-    // const int maxWarps = prop.maxThreadsPerMultiProcessor / prop.warpSize;
-
-    // std::cout << "Occupancy: " << (double)activeWarps / maxWarps * 100 << "%" << std::endl;
-    
     CHECK_CUDA(cudaDeviceSynchronize());
 
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
     std::cout << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
               << std::endl;
 
-    cudaMemcpy(data, d_data, senn * sizeof(d_t), cudaMemcpyDeviceToHost);
+    CHECK_CUDA(cudaMemcpy(data, d_data, senn * sizeof(d_t), cudaMemcpyDeviceToHost));
 
     cudaFree(d_mir);
     cudaFree(d_sen);
@@ -138,6 +138,10 @@ int main(){
     fi = fopen("out.data", "wb");
     fwrite(data, 1, senn * sizeof(d_t), fi);
     fclose(fi);
+
+    free(mir);
+    free(sen);
+    free(data);
 
     return 0;
 }
