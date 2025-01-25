@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <malloc.h>
 #include <stdint.h>
+#include <cuda_fp16.h>
 
 typedef double d_t;
 struct d3_t {
@@ -20,6 +21,27 @@ __device__ __host__ d3_t operator*(d3_t a, d_t b) {
     return {a.x*b,a.y*b,a.z*b};
 }
 
+
+typedef float f_t;
+struct f3_t {
+    f_t x, y, z;
+
+    __device__ __host__ f3_t(d3_t a): x(a.x), y(a.y), z(a.z) {}
+    __device__ __host__ f3_t(f_t x, f_t y, f_t z): x(x), y(y), z(z) {}
+};
+
+// __device__ f_t norm(f3_t x) {
+//     return sqrt(x.x * x.x + x.y * x.y + x.z * x.z);
+// }
+
+// __device__ f3_t operator-(f3_t a, f3_t b) {
+//     return {a.x-b.x,a.y-b.y,a.z-b.z};
+// }
+
+__device__ __host__ f3_t operator*(f3_t a, f_t b) {
+    return {a.x*b,a.y*b,a.z*b};
+}
+
 constexpr d_t coeff = 6.283185307179586 * 2000;
 
 /**
@@ -33,7 +55,7 @@ constexpr d_t coeff = 6.283185307179586 * 2000;
  * @param senn 
  */
 template<int64_t mirn, int64_t senn>
-__global__ void kernel(d3_t src, d3_t mir[senn], d3_t sen[senn], d_t data[senn]) {
+__global__ void kernel(const d3_t src, d3_t mir[senn], d3_t sen[senn], d_t data[senn]) {
     int64_t i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < senn) {
         const d3_t sen_i = sen[i] * coeff;
@@ -42,8 +64,14 @@ __global__ void kernel(d3_t src, d3_t mir[senn], d3_t sen[senn], d_t data[senn])
         for (int64_t j = 0; j < mirn; j++) {
             const d3_t mir_j = mir[j] * coeff;
             d_t l = norm(mir_j - src) + norm(mir_j - sen_i);
-            a += cos(l);
-            b += sin(l);
+
+            d_t tmp_a, tmp_b;
+            sincos(l, &tmp_b, &tmp_a);
+            a += tmp_a;
+            b += tmp_b;
+
+            // a += cos(l);
+            // b += sin(l);
         }
         data[i] = sqrt(a * a + b * b);
     }
