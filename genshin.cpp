@@ -19,7 +19,7 @@ using cell_t = int8_t;
 struct sparse_matrix_pair {
     int32_t index;
     cell_t value;
-    sparse_matrix_pair(int32_t index, cell_t value) : index(index), value(value) {}
+    constexpr sparse_matrix_pair(int32_t index, cell_t value) : index(index), value(value) {}
 
     bool operator<(const sparse_matrix_pair &rhs) const {
         return index < rhs.index;
