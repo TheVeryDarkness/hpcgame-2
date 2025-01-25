@@ -102,7 +102,7 @@ int main(int argc, char **argv) {
                 }
             } else if (event.type == 2) {
                 // 妙手回春
-                // #pragma omp parallel for collapse(2) // 并行化，不会数据竞争
+                #pragma omp parallel for collapse(2) // 并行化，不会数据竞争
                 for (int x = std::max(event.x1, x_start); x <= std::min(event.x2, x_end); x++) {
                     for (int y = std::max(event.y1, y_start); y <= std::min(event.y2, y_end); y++) {
                         auto &cell = new_forest[(x - x_start) * block_size + y - y_start];
@@ -130,7 +130,7 @@ int main(int argc, char **argv) {
         recv_data[0].resize(block_size, -1);
         recv_data[1].resize(block_size, -1);
 
-        // #pragma omp parallel for collapse(2) // 并行化，不会数据竞争
+        #pragma omp parallel for collapse(2) // 并行化，不会数据竞争
         for (int x = 0; x <= block_size; x++) {
             for (int y = 0; y <= block_size; y++) {
                 if (new_forest[x * block_size + y] == FIRE) {
@@ -140,13 +140,13 @@ int main(int argc, char **argv) {
                     const bool at_y_boundary = rank / 2 == 0 ? y == block_size - 1 : y == 0;
 
                     if (at_x_boundary) {
-                        // #pragma omp critical
+                        #pragma omp critical
                         {
                             send_data[0].push_back(y);
                         }
                     }
                     if (at_y_boundary) {
-                        // #pragma omp critical
+                        #pragma omp critical
                         {
                             send_data[1].push_back(x);
                         }
