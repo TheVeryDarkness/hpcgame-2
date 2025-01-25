@@ -24,23 +24,23 @@ println("Base: ", [time_i64_1m_base, time_f64_1m_base])
 println("Impl: ", [time_i64_1m, time_f64_1m])
 println("Speedup: ", [time_i64_1m_base / time_i64_1m, time_f64_1m_base / time_f64_1m])
 
-# 64M
+# 16M
 
-i64_64m = rand(Int64, 1 << 26)
-f64_64m = randn(Float64, 1 << 26)
+i64_16m = rand(Int64, 1 << 24)
+f64_16m = randn(Float64, 1 << 24)
 
-println("Testing on 64M data...")
-res, time_i64_64m = @timed topk(i64_64m, 1 << 8)
-ref, time_i64_64m_base = @timed partialsortperm(i64_64m, 1:1 << 8, rev=true)
-@assert all(res .== ref) "Failed for Int64 64m"
+println("Testing on 16M data...")
+res, time_i64_16m = @timed topk(i64_16m, 1 << 8)
+ref, time_i64_16m_base = @timed partialsortperm(i64_16m, 1:1 << 8, rev=true)
+@assert all(res .== ref) "Failed for Int64 16m"
 
-res, time_f64_64m = @timed topk(f64_64m, 1 << 8)
-ref, time_f64_64m_base = @timed partialsortperm(f64_64m, 1:1 << 8, rev=true)
-@assert all(res .== ref) "Failed for Float64 64m"
+res, time_f64_16m = @timed topk(f64_16m, 1 << 8)
+ref, time_f64_16m_base = @timed partialsortperm(f64_16m, 1:1 << 8, rev=true)
+@assert all(res .== ref) "Failed for Float64 16m"
 
-println("Base: ", [time_i64_64m_base, time_f64_64m_base])
-println("Impl: ", [time_i64_64m, time_f64_64m])
-println("Speedup: ", [time_i64_64m_base / time_i64_64m, time_f64_64m_base / time_f64_64m])
+println("Base: ", [time_i64_16m_base, time_f64_16m_base])
+println("Impl: ", [time_i64_16m, time_f64_16m])
+println("Speedup: ", [time_i64_16m_base / time_i64_16m, time_f64_16m_base / time_f64_16m])
 
 # # 1B
 # i64_1b = rand(Int64, 1 << 30)

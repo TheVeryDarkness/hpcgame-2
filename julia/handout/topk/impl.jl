@@ -6,7 +6,7 @@ mutable struct Atomic{T}; @atomic x::T; end
 end
 
 @inbounds function topk(data::AbstractVector{T}, k) where T
-    chunk_size = length(data) ÷ n
+    chunk_size = length(data) ÷ 8
     # chunk_size = 1 << 17
     chunks = enumerate(Iterators.partition(data, chunk_size))
     tasks = map(chunks) do (i, chunk)
