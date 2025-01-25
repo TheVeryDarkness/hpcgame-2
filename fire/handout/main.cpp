@@ -163,6 +163,9 @@ int main(int argc, char **argv) {
                             new_new_forest[offset] = FIRE;
                         }
                     }
+                    // if (new_forest[x * block_size + y] == FIRE) {
+                    //     new_new_forest[x * block_size + y] = ASH;
+                    // }
                 }
             }
         }
