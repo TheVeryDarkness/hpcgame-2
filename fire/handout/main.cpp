@@ -173,14 +173,17 @@ int main(int argc, char **argv) {
                 }
             }
         }
+
+        const int peer_x = (rank % 2 == 0) ? rank + 1 : rank - 1;
+        const int peer_y = (rank / 2 == 0) ? rank + 2 : rank - 2;
         MPI_Sendrecv(
-            send_data[0].data(), send_data[0].size(), MPI_INT, (rank + 1) % 2, t,
-            recv_data[0].data(), recv_data[0].size(), MPI_INT, (rank + 1) % 2, t,
+            send_data[0].data(), send_data[0].size(), MPI_INT, peer_x, t,
+            recv_data[0].data(), recv_data[0].size(), MPI_INT, peer_x, t,
             MPI_COMM_WORLD, MPI_STATUS_IGNORE
         );
         MPI_Sendrecv(
-            send_data[1].data(), send_data[1].size(), MPI_INT, (rank + 2) % 4, t,
-            recv_data[1].data(), recv_data[1].size(), MPI_INT, (rank + 2) % 4, t,
+            send_data[1].data(), send_data[1].size(), MPI_INT, peer_y, t,
+            recv_data[1].data(), recv_data[1].size(), MPI_INT, peer_y, t,
             MPI_COMM_WORLD, MPI_STATUS_IGNORE
         );
         for (int i = 0; i < recv_data[0].size(); i++) {
