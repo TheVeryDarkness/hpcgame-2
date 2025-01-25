@@ -24,6 +24,7 @@
         }                                               \
     } while (0)
 
+typedef float c_t;
 typedef double f_t;
 typedef double d_t;
 // // https://blog.csdn.net/bruce_0712/article/details/65444997
@@ -39,7 +40,7 @@ struct f3_t {
     f_t x, y, z;
 
     __device__ f3_t(d3_t d) : x(d.x), y(d.y), z(d.z) {}
-    __device__ f3_t(f_t x, f_t y, f_t z) : x(x), y(y), z(z) {}
+    // __device__ f3_t(f_t x, f_t y, f_t z) : x(x), y(y), z(z) {}
     f3_t() = default;
 };
 
@@ -51,7 +52,7 @@ struct f3_t {
 //     return {a.x-b.x,a.y-b.y,a.z-b.z};
 // }
 
-static inline __device__ f_t sub_norm(f_t x, f_t y, f_t z, f3_t base) {
+static inline __device__ f_t sub_norm(f_t x, f_t y, f_t z, d3_t base) {
     const f_t dx = x - base.x;
     const f_t dy = y - base.y;
     const f_t dz = z - base.z;
@@ -64,12 +65,12 @@ __global__ void kernel(const d3_t src, const f_t* mir_x, const f_t* mir_y, const
     static_assert(mirn == 1048576);
     static_assert(senn == 1048576);
     int64_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    const f3_t sen_i = sen[i];
+    const d3_t sen_i = sen[i];
 
     constexpr f_t coeff = 6.283185307179586 * 2000;
     {
-        d_t a=0;
-        d_t b=0;
+        c_t a = 0;
+        c_t b = 0;
         // #pragma unroll
         for (int64_t j = 0; j < mirn; j++) {
             const f_t mir_x_j = mir_x[j];
@@ -77,8 +78,9 @@ __global__ void kernel(const d3_t src, const f_t* mir_x, const f_t* mir_y, const
             const f_t mir_z_j = mir_z[j];
             // d_t l = norm(mir[j] - src) + norm(mir[j] - sen_i);
             f_t l = sub_norm(mir_x_j, mir_y_j, mir_z_j, src) + sub_norm(mir_x_j, mir_y_j, mir_z_j, sen_i);
-            a += cos(coeff * l);
-            b += sin(coeff * l);
+            f_t c_l = coeff * l;
+            a += cos(c_l);
+            b += sin(c_l);
         }
         data[i] = sqrt(a * a + b * b);
     }
