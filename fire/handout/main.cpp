@@ -98,7 +98,11 @@ int main(int argc, char **argv) {
                 // 妙手回春
                 for (int x = std::max(event.x1, x_start); x <= std::min(event.x2, x_end); x++) {
                     for (int y = std::max(event.y1, y_start); y <= std::min(event.y2, y_end); y++) {
-                        new_forest[x - x_start][y - y_start] = TREE;
+                        auto &cell = new_forest[x - x_start][y - y_start];
+                        if (cell == ASH) {
+                            cell = TREE;
+                        }
+                        // new_forest[x - x_start][y - y_start] = TREE;
                     }
                 }
             }
@@ -118,8 +122,9 @@ int main(int argc, char **argv) {
                 if (new_forest[x][y] == FIRE) {
                     if (x == 0 || x == block_size - 1) {
                         send_data[0].push_back(y);
-                    } else if (y == 0 || y == block_size - 1) {
-                        send_data[1].push_back(y);
+                    }
+                    if (y == 0 || y == block_size - 1) {
+                        send_data[1].push_back(x);
                     }
                     if (x > 0 && new_forest[x - 1][y] == TREE) {
                         new_forest[x - 1][y] = FIRE;
@@ -147,15 +152,17 @@ int main(int argc, char **argv) {
             MPI_COMM_WORLD, MPI_STATUS_IGNORE
         );
         for (int i = 0; i < recv_data[0].size(); i++) {
-            const int x = (rank % 2 == 0) ? 0 : block_size - 1;
-            if (new_forest[x][recv_data[x][i]] == TREE) {
-                new_forest[x][recv_data[x][i]] = FIRE;
+            const int x = (rank % 2 == 0) ? block_size - 1 : 0;
+            auto &cell = new_forest[x][recv_data[0][i]];
+            if (cell == TREE) {
+                cell = FIRE;
             }
         }
         for (int i = 0; i < recv_data[1].size(); i++) {
-            const int y = (rank / 2 == 0) ? 0 : block_size - 1;
-            if (new_forest[recv_data[y][i]][y] == TREE) {
-                new_forest[recv_data[y][i]][y] = FIRE;
+            const int y = (rank / 2 == 0) ? block_size - 1 : 0;
+            auto &cell = new_forest[recv_data[1][i]][y];
+            if (cell == TREE) {
+                cell = FIRE;
             }
         }
 
