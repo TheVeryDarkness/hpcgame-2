@@ -3,6 +3,7 @@
 #include <fstream>
 #include <mpi.h>
 #include <vector>
+// #include <omp.h>
 #include <mutex>
 
 const int TREE = 1;  // 树木
@@ -135,7 +136,7 @@ int main(int argc, char **argv) {
 
         // 当可能访问到边界时，需要加锁，以免多个线程同时访问同一个位置
         // 共计 3 * 4 * 2 = 24 条边界。
-        std::mutex mtx[24];
+        std::mutex mtx;
 
         const int thread_block_size = block_size / thread_dim;
 
@@ -149,24 +150,27 @@ int main(int argc, char **argv) {
             for (int x = x_start; x <= x_end; x++) {
                 for (int y = y_start; y <= y_end; y++) {
                     if (new_forest[x * block_size + y] == FIRE) {
+                        // 检查是否可能会访问到边界
+                        const bool may_burn_boundary = x == 0 || x == block_size - 1 || y == 0 || y == block_size - 1;
                         // 检查是否在右边界（本子区域在左）或左边界（本子区域在右）
-                        const bool at_x_boundary = rank % 2 == 0 ? x >= block_size - 2 : x <= 1;
+                        const bool at_x_boundary = rank % 2 == 0 ? x == block_size - 1 : x == 0;
                         // 检查是否在下边界（本子区域在上）或上边界（本子区域在下）
-                        const bool at_y_boundary = rank / 2 == 0 ? y >= block_size - 2 : y <= 1;
+                        const bool at_y_boundary = rank / 2 == 0 ? y == block_size - 1 : y == 0;
 
-                        const int lock_id_x = thr + x >= block_size - 2 ? 1 : 0;
-                        const int lock_id_y = thr + y >= block_size - 2 ? 1 : 0 + 12;
                         if (at_x_boundary) {
-                            mtx[lock_id_x].lock();
+                            #pragma omp critical
+                            {
+                                send_data[0].push_back(y);
+                            }
                         }
                         if (at_y_boundary) {
-                            mtx[lock_id_y].lock();
+                            #pragma omp critical
+                            {
+                                send_data[1].push_back(x);
+                            }
                         }
-                        if (at_x_boundary) {
-                            send_data[0].push_back(y);
-                        }
-                        if (at_y_boundary) {
-                            send_data[1].push_back(x);
+                        if (may_burn_boundary) {
+                            mtx.lock();
                         }
                         if (x > 0 && new_forest[(x - 1) * block_size + y] == TREE) {
                             new_new_forest[(x - 1) * block_size + y] = FIRE;
@@ -177,14 +181,8 @@ int main(int argc, char **argv) {
                         if (y > 0 && new_forest[x * block_size + (y - 1)] == TREE) {
                             new_new_forest[x * block_size + (y - 1)] = FIRE;
                         }
-                        if (y < block_size - 1 && new_forest[x * block_size + (y + 1)] == TREE) {
-                            new_new_forest[x * block_size + (y + 1)] = FIRE;
-                        }
-                        if (at_x_boundary) {
-                            mtx[lock_id_x].unlock();
-                        }
-                        if (at_y_boundary) {
-                            mtx[lock_id_y].unlock();
+                        if (may_burn_boundary) {
+                            mtx.unlock();
                         }
                     }
                 }
