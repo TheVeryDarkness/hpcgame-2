@@ -1,4 +1,5 @@
 // Copilot, thanks for your help!
+#include <cassert>
 #include <iostream>
 #include <fstream>
 #include <mpi.h>
@@ -85,8 +86,10 @@ int main(int argc, char **argv) {
 
     // 模拟火灾
     for (int t = 0; t < time_steps; t++) {
+        assert(forest.size() == block_size * block_size);
         // 处理事件后的森林
         std::vector<int> new_forest = forest;
+        assert(new_forest.size() == block_size * block_size);
 
         // 处理事件
         if (event_id < event_count && events[event_id].ts == t) {
@@ -118,6 +121,7 @@ int main(int argc, char **argv) {
 
         // 扩散火焰后的森林
         std::vector<int> new_new_forest = new_forest;
+        assert(new_new_forest.size() == block_size * block_size);
 
         // 扩散火焰
         // 由于我们使用了二维数组，因此我们需要考虑边界情况
@@ -131,8 +135,8 @@ int main(int argc, char **argv) {
         recv_data[1].resize(block_size, -1);
 
         #pragma omp parallel for collapse(2) // 并行化，不会数据竞争
-        for (int x = 0; x <= block_size; x++) {
-            for (int y = 0; y <= block_size; y++) {
+        for (int x = 0; x < block_size; x++) {
+            for (int y = 0; y < block_size; y++) {
                 if (new_forest[x * block_size + y] == FIRE) {
                     // 检查是否在右边界（本子区域在左）或左边界（本子区域在右）
                     const bool at_x_boundary = rank % 2 == 0 ? x == block_size - 1 : x == 0;
@@ -159,6 +163,7 @@ int main(int argc, char **argv) {
                             continue;
                         }
                         const int offset = nx * block_size + ny;
+                        assert(offset >= 0 && offset < block_size * block_size);
                         if (new_forest[offset] == TREE) {
                             new_new_forest[offset] = FIRE;
                         }
