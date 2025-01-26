@@ -10,21 +10,14 @@ while True:
     r = hex(random.randint(0, 255))
     g = hex(random.randint(0, 255))
     b = hex(random.randint(0, 255))
-    if not os.path.exists("job.json"):
-        with open("job.json", "w") as f:
-            result = subprocess.run(["painter", "job", "get"], stdout=f)
-            print(f"Got job: {result}")
-            if result.returncode != 0:
-                print("No job available", result.stderr, time.time())
-                time.sleep(1)
-                continue
-        with open("job.json") as f:
-            job = json.load(f)
-            print(f"Got job: {job}")
-    else:
-        with open("job.json") as f:
-            job = json.load(f)
-            print(f"Got job: {job}")
+    with open("job.json", "w") as f:
+        result = subprocess.run(["painter", "job", "get"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8")
+        print(f"Get job: {result.stdout}")
+        job = json.loads(result.stdout)
+        if result.returncode != 0:
+            print("No job available", result.stderr, time.time())
+            time.sleep(1)
+            continue
 
     R = r + job["r"]
     G = g + job["g"]
