@@ -7,9 +7,9 @@ import os
 subprocess.run(["make", "vanity-board"])
 
 while True:
-    r = hex(random.randint(0, 255))
-    g = hex(random.randint(0, 255))
-    b = hex(random.randint(0, 255))
+    r = hex(random.randint(0, 255))[2:].zfill(2)
+    g = hex(random.randint(0, 255))[2:].zfill(2)
+    b = hex(random.randint(0, 255))[2:].zfill(2)
     with open("job.json", "w") as f:
         result = subprocess.run(["painter", "job", "get"], stdout=subprocess.PIPE, encoding="utf-8")
         print(f"Get job: {result.stdout}")
@@ -19,14 +19,16 @@ while True:
             time.sleep(1)
             continue
 
-    R = '0x' + r + job["r"]
-    G = '0x' + g + job["g"]
-    B = '0x' + b + job["b"]
+    R = r + job["r"]
+    G = g + job["g"]
+    B = b + job["b"]
 
     with open("vanity.in", "w") as f:
         f.write(f"{R}\n{G}\n{B}")
 
-    vanity = subprocess.call(["./vanity-board", R, G, B], stdout=subprocess.PIPE, encoding="utf-8")
+    print(f"Starting vanity board at {time.time()}")
+    vanity = subprocess.run(["./vanity-board", R, G, B], stdout=subprocess.PIPE, encoding="utf-8")
+    print(f"Finished vanity board at {time.time()}")
     print(f"Vanity board: {vanity.stdout}")
 
     with open("vanity.out", "w") as f:
@@ -45,11 +47,11 @@ while True:
 
     i = 0
     while i < 10:
-        x = random.randint(0, 800)
-        y = random.randint(0, 600)
-        while 255 <= x <= 320 and 345 <= y <= 480:
-            x = random.randint(0, 800)
-            y = random.randint(0, 600)
+        x = random.randint(450, 480)
+        y = random.randint(190, 270)
+        # while 255 <= x <= 320 and 345 <= y <= 480:
+        #     x = random.randint(0, 800)
+        #     y = random.randint(0, 600)
         subprocess.run(["pointer", "pixel", "set", "--x", x, "--y", y, "--token", token], encoding="utf-8")
         i += 1
         os.rename("job.json", f"job.json.done.{time.time()}")
