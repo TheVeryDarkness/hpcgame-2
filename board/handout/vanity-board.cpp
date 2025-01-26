@@ -144,7 +144,7 @@ int main(int argc, char* argv[]) {
         const uint8_t* const privateKey = privateKeys[i];
         std::string &address = addresses[i];
 
-        // std::cout << address << std::endl;  
+        std::cout << address << std::endl;  
         std::cout << toHex(privateKey, 32) << std::endl;  
     }
     return 0;  
