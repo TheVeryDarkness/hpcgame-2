@@ -9,6 +9,9 @@ all: vanity chk
 vanity: vanity.cpp
 	$(CXX) $(CFLAGS) -o $@ $< $(LIBS)
 
+vanity-board: vanity-board.cpp
+	$(CXX) $(CFLAGS) -o $@ $< $(LIBS)
+
 chk: chk.cpp
 	$(CXX) $(CFLAGS) -o $@ $< $(LIBS)
 

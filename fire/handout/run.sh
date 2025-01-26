@@ -14,6 +14,17 @@ mpiicpx main.cpp -Wall -O3 -xHost -o forest
 # scp /data/forest /data/1.in /data/2.in root@hpcgame-test-fire-workers-0-2:/data/
 # scp /data/forest /data/1.in /data/2.in root@hpcgame-test-fire-workers-0-3:/data/
 
+mpirun --hostfile hostfile -np 4 /data/forest /data/1-0.in /data/1-0.out
+diff ./1-0.out ./1-0.out.std
+mpirun --hostfile hostfile -np 4 /data/forest /data/1-1.in /data/1-1.out
+diff ./1-1.out ./1-1.out.std
+mpirun --hostfile hostfile -np 4 /data/forest /data/1-2.in /data/1-2.out
+diff ./1-2.out ./1-2.out.std
+mpirun --hostfile hostfile -np 4 /data/forest /data/1-3.in /data/1-3.out
+diff ./1-3.out ./1-3.out.std
+mpirun --hostfile hostfile -np 4 /data/forest /data/1-4.in /data/1-4.out
+diff ./1-4.out ./1-4.out.std
+
 mpirun --hostfile hostfile -np 4 /data/forest /data/1.in /data/1.out
 diff ./1.out ./1.out.std
 mpirun --hostfile hostfile -np 4 /data/forest /data/2.in /data/2.out
