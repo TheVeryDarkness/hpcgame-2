@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
         }
 
         // 扩散火焰后的森林
-        std::vector<int> new_new_forest = forest;
+        std::vector<int> new_new_forest = new_forest;
 
         // 扩散火焰
         // 由于我们使用了二维数组，因此我们需要考虑边界情况
@@ -163,9 +163,9 @@ int main(int argc, char **argv) {
                             new_new_forest[offset] = FIRE;
                         }
                     }
-                    // if (new_forest[x * block_size + y] == FIRE) {
-                    //     new_new_forest[x * block_size + y] = ASH;
-                    // }
+                    if (new_forest[x * block_size + y] == FIRE) {
+                        new_new_forest[x * block_size + y] = ASH;
+                    }
                 }
             }
         }
