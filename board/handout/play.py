@@ -26,9 +26,9 @@ while True:
     with open("vanity.in", "w") as f:
         f.write(f"{R}\n{G}\n{B}")
 
-    print(f"Starting vanity board at {time.time()}")
+    print(f"Starting vanity board at {time.asctime()}")
     vanity = subprocess.run(["./vanity-board", R, G, B], stdout=subprocess.PIPE, encoding="utf-8")
-    print(f"Finished vanity board at {time.time()}")
+    print(f"Finished vanity board at {time.asctime()}")
     print(f"Vanity board: {vanity.stdout}")
 
     with open("vanity.out", "w") as f:
@@ -52,6 +52,6 @@ while True:
         # while 255 <= x <= 320 and 345 <= y <= 480:
         #     x = random.randint(0, 800)
         #     y = random.randint(0, 600)
-        subprocess.run(["pointer", "pixel", "set", "--x", x, "--y", y, "--token", token], encoding="utf-8")
+        subprocess.run(["painter", "pixel", "set", "--x", str(x), "--y", str(y), "--token", str(token)], encoding="utf-8")
         i += 1
         os.rename("job.json", f"job.json.done.{time.time()}")

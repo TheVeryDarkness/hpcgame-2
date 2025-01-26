@@ -87,9 +87,6 @@ int main(int argc, char **argv) {
     // 模拟火灾
     for (int t = 0; t < time_steps; t++) {
         assert(forest.size() == block_size * block_size);
-        // 处理事件后的森林
-        std::vector<int> new_forest = forest;
-        assert(new_forest.size() == block_size * block_size);
 
         // 处理事件
         if (event_id < event_count && events[event_id].ts == t) {
@@ -97,22 +94,22 @@ int main(int argc, char **argv) {
             if (event.type == 1) {
                 // 天降惊雷
                 if (x_start <= event.x1 && event.x1 <= x_end && y_start <= event.y1 && event.y1 <= y_end) {
-                    auto &cell = new_forest[(event.x1 - x_start) * block_size + event.y1 - y_start];
+                    auto &cell = forest[(event.x1 - x_start) * block_size + event.y1 - y_start];
                     if (cell == TREE) {
                         cell = FIRE;
                     }
-                    // new_forest[(event.x1 - x_start) * block_size + event.y1 - y_start] = FIRE;
+                    // forest[(event.x1 - x_start) * block_size + event.y1 - y_start] = FIRE;
                 }
             } else if (event.type == 2) {
                 // 妙手回春
                 #pragma omp parallel for collapse(2) // 并行化，不会数据竞争
                 for (int x = std::max(event.x1, x_start); x <= std::min(event.x2, x_end); x++) {
                     for (int y = std::max(event.y1, y_start); y <= std::min(event.y2, y_end); y++) {
-                        auto &cell = new_forest[(x - x_start) * block_size + y - y_start];
+                        auto &cell = forest[(x - x_start) * block_size + y - y_start];
                         if (cell == ASH) {
                             cell = TREE;
                         }
-                        // new_forest[x - x_start][y - y_start] = TREE;
+                        // forest[x - x_start][y - y_start] = TREE;
                     }
                 }
             }
@@ -120,7 +117,7 @@ int main(int argc, char **argv) {
         }
 
         // 扩散火焰后的森林
-        std::vector<int> new_new_forest = new_forest;
+        std::vector<int> new_new_forest = forest;
         assert(new_new_forest.size() == block_size * block_size);
 
         // 扩散火焰
@@ -137,7 +134,7 @@ int main(int argc, char **argv) {
         #pragma omp parallel for collapse(2) // 并行化，不会数据竞争
         for (int x = 0; x < block_size; x++) {
             for (int y = 0; y < block_size; y++) {
-                if (new_forest[x * block_size + y] == FIRE) {
+                if (forest[x * block_size + y] == FIRE) {
                     // 检查是否在右边界（本子区域在左）或左边界（本子区域在右）
                     const bool at_x_boundary = rank % 2 == 0 ? x == block_size - 1 : x == 0;
                     // 检查是否在下边界（本子区域在上）或上边界（本子区域在下）
@@ -164,11 +161,11 @@ int main(int argc, char **argv) {
                         }
                         const int offset = nx * block_size + ny;
                         assert(offset >= 0 && offset < block_size * block_size);
-                        if (new_forest[offset] == TREE) {
+                        if (forest[offset] == TREE) {
                             new_new_forest[offset] = FIRE;
                         }
                     }
-                    if (new_forest[x * block_size + y] == FIRE) {
+                    if (forest[x * block_size + y] == FIRE) {
                         new_new_forest[x * block_size + y] = ASH;
                     }
                 }
@@ -210,7 +207,6 @@ int main(int argc, char **argv) {
             }
         }
 
-        // forest = new_forest;
         std::swap(forest, new_new_forest);
     }
 
