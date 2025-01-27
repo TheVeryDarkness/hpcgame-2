@@ -39,6 +39,7 @@ int main(int argc, char **argv) {
 
     std::ifstream fin(input_file);
     fin >> size >> event_count >> time_steps;
+    assert(fin.good());
 
     // 初始化 MPI
     MPI_Init(&argc, &argv);
@@ -78,6 +79,7 @@ int main(int argc, char **argv) {
         if (events[i].type == 2) {
             fin >> events[i].x2 >> events[i].y2;
         }
+        // std::clog << "Event " << i << ": ts=" << events[i].ts << ", type=" << events[i].type << ", x1=" << events[i].x1 << ", y1=" << events[i].y1 << ", x2=" << events[i].x2 << ", y2=" << events[i].y2 << std::endl;
     }
     fin.close();
 
@@ -89,7 +91,7 @@ int main(int argc, char **argv) {
         assert(forest.size() == block_size * block_size);
 
         // 处理事件
-        if (event_id < event_count && events[event_id].ts == t) {
+        if (event_id < event_count && events[event_id].ts == t + 1) {
             const Event &event = events[event_id];
             if (event.type == 1) {
                 // 天降惊雷
@@ -98,7 +100,6 @@ int main(int argc, char **argv) {
                     if (cell == TREE) {
                         cell = FIRE;
                     }
-                    // forest[(event.x1 - x_start) * block_size + event.y1 - y_start] = FIRE;
                 }
             } else if (event.type == 2) {
                 // 妙手回春
@@ -109,7 +110,6 @@ int main(int argc, char **argv) {
                         if (cell == ASH) {
                             cell = TREE;
                         }
-                        // forest[x - x_start][y - y_start] = TREE;
                     }
                 }
             }
@@ -117,8 +117,8 @@ int main(int argc, char **argv) {
         }
 
         // 扩散火焰后的森林
-        std::vector<int> new_new_forest = forest;
-        assert(new_new_forest.size() == block_size * block_size);
+        std::vector<int> new_forest = forest;
+        assert(new_forest.size() == block_size * block_size);
 
         // 扩散火焰
         // 由于我们使用了二维数组，因此我们需要考虑边界情况
@@ -162,11 +162,11 @@ int main(int argc, char **argv) {
                         const int offset = nx * block_size + ny;
                         assert(offset >= 0 && offset < block_size * block_size);
                         if (forest[offset] == TREE) {
-                            new_new_forest[offset] = FIRE;
+                            new_forest[offset] = FIRE;
                         }
                     }
                     if (forest[x * block_size + y] == FIRE) {
-                        new_new_forest[x * block_size + y] = ASH;
+                        new_forest[x * block_size + y] = ASH;
                     }
                 }
             }
@@ -184,30 +184,32 @@ int main(int argc, char **argv) {
             recv_data[1].data(), recv_data[1].size(), MPI_INT, peer_y, t,
             MPI_COMM_WORLD, MPI_STATUS_IGNORE
         );
+        #pragma omp parallel for // 并行化，不会数据竞争
         for (int i = 0; i < recv_data[0].size(); i++) {
             const int x = (rank % 2 == 0) ? block_size - 1 : 0;
             const int y = recv_data[0][i];
             if (y < 0 || y >= block_size) {
                 break;
             }
-            auto &cell = new_new_forest[x * block_size + y];
+            auto &cell = new_forest[x * block_size + y];
             if (cell == TREE) {
                 cell = FIRE;
             }
         }
+        #pragma omp parallel for // 并行化，不会数据竞争
         for (int i = 0; i < recv_data[1].size(); i++) {
             const int y = (rank / 2 == 0) ? block_size - 1 : 0;
             const int x = recv_data[1][i];
             if (x < 0 || x >= block_size) {
                 break;
             }
-            auto &cell = new_new_forest[x * block_size + y];
+            auto &cell = new_forest[x * block_size + y];
             if (cell == TREE) {
                 cell = FIRE;
             }
         }
 
-        std::swap(forest, new_new_forest);
+        std::swap(forest, new_forest);
     }
 
     // 收集结果

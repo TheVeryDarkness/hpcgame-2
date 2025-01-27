@@ -21,6 +21,12 @@ __device__ __host__ d3_t operator*(d3_t a, d_t b) {
     return {a.x*b,a.y*b,a.z*b};
 }
 
+__device__ __host__ d3_t &operator*=(d3_t &a, d_t b) {
+    a.x *= b;
+    a.y *= b;
+    a.z *= b;
+    return a;
+}
 
 typedef float f_t;
 struct f3_t {
@@ -58,11 +64,11 @@ template<int64_t mirn, int64_t senn>
 __global__ void kernel(const d3_t src, d3_t mir[senn], d3_t sen[senn], d_t data[senn]) {
     int64_t i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < senn) {
-        const d3_t sen_i = sen[i] * coeff;
+        const d3_t sen_i = sen[i];
         d_t a = 0;
         d_t b = 0;
         for (int64_t j = 0; j < mirn; j++) {
-            const d3_t mir_j = mir[j] * coeff;
+            const d3_t mir_j = mir[j];
             d_t l = norm(mir_j - src) + norm(mir_j - sen_i);
 
             d_t tmp_a, tmp_b;
@@ -70,8 +76,19 @@ __global__ void kernel(const d3_t src, d3_t mir[senn], d3_t sen[senn], d_t data[
             a += tmp_a;
             b += tmp_b;
 
+            // f_t tmp_a, tmp_b;
+            // sincosf(l, &tmp_b, &tmp_a);
+            // a += tmp_a;
+            // b += tmp_b;
+
             // a += cos(l);
             // b += sin(l);
+
+            // a += (1 - 0.5 * l * l);
+            // b += l;
+
+            // a += (1 - 0.5 * l * l);
+            // b += l * (1 - l * l / 6);
         }
         data[i] = sqrt(a * a + b * b);
     }
@@ -89,10 +106,16 @@ int main(){
     fread(&mirn, 1, sizeof(int64_t), fi);
     mir = (d3_t*)malloc(mirn * sizeof(d3_t));
     fread(mir, 1, mirn * sizeof(d3_t), fi);
+    for (int64_t i = 0; i < mirn; i++) {
+        mir[i] *= coeff;
+    }
 
     fread(&senn, 1, sizeof(int64_t), fi);
     sen = (d3_t*)malloc(senn * sizeof(d3_t));
     fread(sen, 1, senn * sizeof(d3_t), fi);
+    for (int64_t i = 0; i < senn; i++) {
+        sen[i] *= coeff;
+    }
 
     fclose(fi);
 

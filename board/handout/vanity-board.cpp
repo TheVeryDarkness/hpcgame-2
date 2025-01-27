@@ -110,6 +110,7 @@ void *run(void *arg) {
                     memcpy(privateKeys[j], privateKey, sizeof(privateKey));
                 }
             }  
+            // std::clog << addressView2 << ' ' << vanityPrefix << '\n'; 
         }
         if (found_total == MAX_VANITY_LENGTH)
             break;
